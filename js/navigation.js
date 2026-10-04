@@ -1,7 +1,7 @@
 // Schermo di guida "stile CarPlay": posizione GPS sul percorso, freccia fluida, voce, ricalcolo.
-import { parseTrip, stopShapeIndices, formatDuration } from './core.js?v=202610041259';
-import { buildRouteIndex, projectOnRoute, pointAtDistance, progress, Tracker, easeAngle, formatDistance, maneuverIcon, spokenAlert, NAV } from './nav.js?v=202610041259';
-import { fetchRoute } from './services.js?v=202610041259';
+import { parseTrip, stopShapeIndices, formatDuration } from './core.js?v=202610041317';
+import { buildRouteIndex, projectOnRoute, pointAtDistance, progress, Tracker, easeAngle, formatDistance, maneuverIcon, spokenAlert, NAV } from './nav.js?v=202610041317';
+import { fetchRoute } from './services.js?v=202610041317';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -53,6 +53,10 @@ export function startNavigation(ctx) {
   const spoken = new Set(); // "indice:fase" già annunciati
   let voiceOn = readVoice();
   let zoomLevel = 16;
+  let autoZoom = true; // diventa false se lo zoom lo cambi tu con le dita
+  let zoomingByApp = false;
+  // su iPhone l'elenco delle voci arriva dopo: lo si chiede subito
+  if (window.speechSynthesis) speechSynthesis.getVoices();
 
   // ---------- interfaccia ----------
   const ui = $('#nav');
@@ -81,13 +85,27 @@ export function startNavigation(ctx) {
     $('#nav-center').classList.add('attention');
   };
   map.on('dragstart', onDrag);
+  const onZoomStart = () => {
+    if (!zoomingByApp) autoZoom = false; // pizzico dell'utente: lo zoom resta il suo
+  };
+  const onZoomEnd = () => {
+    zoomingByApp = false;
+  };
+  map.on('zoomstart', onZoomStart);
+  map.on('zoomend', onZoomEnd);
+  const setZoomByApp = (z) => {
+    if (map.getZoom() === z) return;
+    zoomingByApp = true;
+    map.setZoom(z);
+  };
 
   const handlers = {
     '#nav-exit': () => stop(),
     '#nav-center': () => {
       following = true;
+      autoZoom = true;
       $('#nav-center').classList.remove('attention');
-      map.setZoom(zoomLevel);
+      setZoomByApp(zoomLevel);
     },
     '#nav-overview': () => {
       following = false;
@@ -276,7 +294,7 @@ export function startNavigation(ctx) {
     else if (kmh < 45) want = 16;
     if (want !== zoomLevel) {
       zoomLevel = want;
-      map.setZoom(zoomLevel);
+      if (autoZoom) setZoomByApp(zoomLevel);
     }
   }
 
@@ -316,6 +334,8 @@ export function startNavigation(ctx) {
     document.removeEventListener('visibilitychange', onVisible);
     if (window.speechSynthesis) speechSynthesis.cancel();
     map.off('dragstart', onDrag);
+    map.off('zoomstart', onZoomStart);
+    map.off('zoomend', onZoomEnd);
     for (const [el, fn] of bound) el.removeEventListener('click', fn);
     arrow.remove();
     ui.hidden = true;
