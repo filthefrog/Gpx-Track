@@ -14,15 +14,18 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Tracce Moto">
   <meta name="format-detection" content="telephone=no">
+  <!-- privacy e sicurezza: la pagina parla solo con i servizi che usa e non manda l'indirizzo completo ai siti esterni -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://*.tile.opentopomap.org https://*.basemaps.cartocdn.com https://cdnjs.cloudflare.com; connect-src 'self' https://valhalla1.openstreetmap.de https://nominatim.openstreetmap.org https://overpass-api.de https://cdnjs.cloudflare.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://*.tile.opentopomap.org https://*.basemaps.cartocdn.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041223">
+  <link rel="stylesheet" href="css/style.css?v=202610041228">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041223"></script>
+  <script type="module" src="js/app.js?v=202610041228"></script>
 </head>
 <body>
   <div class="app">
@@ -164,7 +167,32 @@
             <button type="button" class="btn secondary" id="btn-save">Salva</button>
             <button type="button" class="btn secondary" id="btn-share-link">Condividi link</button>
           </div>
+          <p class="hint">I giri salvati restano solo su questo dispositivo. Il link condiviso contiene tappe e
+            coordinate del giro: chi lo riceve le vede.</p>
           <ul id="saved" class="saved"></ul>
+        </div>
+      </details>
+
+      <details class="card fold" id="privacy-card">
+        <summary>
+          <span class="fold-title">Privacy e dati</span>
+          <span class="fold-sub">Niente account, niente tracciamento</span>
+        </summary>
+        <div class="fold-body privacy">
+          <p>Tracce Moto non ha un server suo, non usa cookie, statistiche o pubblicità e non sa chi sei.
+            Giri salvati, giro in corso e preferenze restano <b>solo in questo dispositivo</b>.</p>
+          <p>Per funzionare l'app chiede dati a servizi pubblici di OpenStreetMap, che vedono il tuo indirizzo IP
+            e ciò che serve alla richiesta:</p>
+          <ul>
+            <li><b>Nominatim</b> (ricerca): il testo che cerchi e le coordinate dei punti toccati sulla mappa.</li>
+            <li><b>Valhalla</b> (FOSSGIS, percorsi): le coordinate delle tappe.</li>
+            <li><b>Overpass</b> (passi): la posizione del passo, solo se scegli «Completo» o «Andata e ritorno».</li>
+            <li><b>Tile della mappa</b> (CARTO, OpenStreetMap, OpenTopoMap): le zone di mappa che guardi.</li>
+          </ul>
+          <p>La tua posizione GPS si usa solo quando tocchi «La mia posizione» e non viene salvata altrove.
+            L'indirizzo della pagina non contiene il giro, così non finisce nella cronologia del browser:
+            il link si crea solo con «Condividi link».</p>
+          <button type="button" class="btn secondary wide danger" id="btn-wipe">Cancella tutti i miei dati</button>
         </div>
       </details>
 

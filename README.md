@@ -64,6 +64,10 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
   sotto il passo e propone «Fai il passo completo».
 - **Mappa**: «Stradale (nitida)» (CARTO Voyager, con tile ad alta risoluzione per gli schermi Retina) è quella
   predefinita; restano OpenStreetMap e OpenTopoMap. L'app ricorda la mappa scelta.
+- **Passare da una strada precisa**: tocca la linea del percorso, compare un punto ⊕; trascinalo sulla strada che
+  vuoi fare (o tocca «Passa da qui») e il percorso si ricalcola passando da lì. Il punto diventa un «passaggio»
+  inserito nel tratto giusto dell'elenco. Anche trascinando un pin esistente il percorso si ricalcola dal nuovo punto,
+  esattamente dove lo lasci (senza agganciarlo a un'altra strada).
 - **Tocco sulla mappa**: mostra nome e zona del punto con «Usa come tappa…» oppure «Inserisci tra le tappe»
   (nella posizione che allunga meno il giro). I marker numerati si trascinano.
 - **Sosta o passaggio** per le tappe intermedie: tocca l'etichetta sotto la tappa. Un passaggio non spezza il
@@ -194,6 +198,20 @@ Consigli:
   o la rotta viene tagliata, dividi il giro in due o usa la Traccia.
 - Imposta sul navigatore le stesse preferenze (per esempio «evita autostrade»), così il ricalcolo tra i punti
   segue la stessa logica.
+
+## Privacy
+
+- Nessun account, nessun cookie, nessuna statistica o pubblicità: il sito è statico e non ha un server suo.
+- Giri salvati, giro in corso e preferenze restano nella memoria del browser del dispositivo (`localStorage`).
+  L'indirizzo della pagina non contiene il giro (non finisce nella cronologia o nella sincronizzazione di Safari):
+  il link con le tappe si crea solo con «Condividi link», e quando lo apri l'app lo toglie dall'indirizzo dopo averlo letto.
+- Per funzionare l'app manda ai servizi pubblici di OpenStreetMap solo ciò che serve: testo cercato e punti toccati
+  a Nominatim, coordinate delle tappe a Valhalla (FOSSGIS), posizione dei passi a Overpass, zone di mappa ai server
+  delle tile. Questi servizi vedono l'indirizzo IP, come qualsiasi sito.
+- La posizione GPS si legge solo quando tocchi «La mia posizione» o «Usa la mia posizione».
+- Una Content Security Policy limita la pagina ai soli servizi elencati; ai siti esterni arriva solo il dominio
+  (`strict-origin-when-cross-origin`), mai l'indirizzo completo.
+- In «Privacy e dati» il pulsante **Cancella tutti i miei dati** elimina giri, preferenze e mappa salvata dal dispositivo.
 
 ## Limiti dei servizi gratuiti
 

@@ -18,10 +18,12 @@ import {
   defaultTripName,
   explainValhallaError,
   cumulativeDistances,
-} from './core.js?v=202610041223';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041223';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041223';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041223';
+  nearestShapeIndex,
+  routeInsertIndex,
+} from './core.js?v=202610041228';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041228';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041228';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041228';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -126,6 +128,9 @@ const routeCasing = L.polyline([], { color: cssVar('--route-casing'), weight: 10
 const routeLine = L.polyline([], { color: cssVar('--route'), weight: 6, opacity: 1, interactive: false, lineCap: 'round', className: 'route-line' }).addTo(map);
 // trattini bianchi che scorrono lungo il percorso
 const routeFlow = L.polyline([], { color: '#ffffff', weight: 2, opacity: 0.85, dashArray: '2 14', interactive: false, className: 'route-flow' }).addTo(map);
+// fascia invisibile più larga della linea: rende facile toccare il percorso col dito
+const routeHit = L.polyline([], { color: '#000', weight: 28, opacity: 0, interactive: true, className: 'route-hit' }).addTo(map);
+let viaGhost = null;
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const seenPins = new Set();
 const seenRows = new Set();
@@ -166,6 +171,7 @@ function renderMarkers() {
       Object.assign(s, { lat, lon: lng, snap: false, name: coordLabel(lat, lng), query: coordLabel(lat, lng), context: 'Punto spostato a mano', kind: '', candidates: [], crossing: null });
       if (s.pass) s.pass = { mode: 'auto', sides: null, up: 0, down: 0 };
       changed();
+      toast(`Tappa ${state.stops.indexOf(s) + 1} spostata: ricalcolo il percorso passando da lì.`);
       const place = await reverseGeocode(lat, lng).catch(() => null);
       if (place && state.stops.includes(s) && s.lat === lat) {
         Object.assign(s, { name: place.name, query: place.name, context: place.context });
@@ -191,7 +197,7 @@ map.on('click', (e) => {
   box.innerHTML = '<div class="pop-name">Cerco il nome…</div><div class="pop-ctx"></div><div class="pop-actions"></div>';
   box.querySelector('.pop-ctx').textContent = coordLabel(lat, lng);
   let place = null;
-  const popup = L.popup({ maxWidth: 270, minWidth: 230 }).setLatLng(e.latlng).setContent(box).openOn(map);
+  const popup = L.popup({ maxWidth: 270, minWidth: 230, autoPanPadding: [60, 60] }).setLatLng(e.latlng).setContent(box).openOn(map);
 
   const add = (where) => {
     const stop = placedStop(lat, lng, place ? place.name : null, { context: place ? place.context : '' });
@@ -233,6 +239,64 @@ map.on('click', (e) => {
       box.querySelector('.pop-name').textContent = 'Punto sulla mappa';
     });
 });
+
+// ---------------------------------------------------------------------------
+// Toccare il percorso: un punto da trascinare sulla strada che si vuole fare
+// ---------------------------------------------------------------------------
+
+function removeGhost() {
+  if (viaGhost) viaGhost.remove();
+  viaGhost = null;
+}
+
+routeHit.on('click', (e) => {
+  L.DomEvent.stopPropagation(e); // non aprire il popup "aggiungi tappa" della mappa
+  if (!route) return;
+  const shape = route.parsed.shape;
+  const k = nearestShapeIndex(shape, [e.latlng.lat, e.latlng.lng]);
+  removeGhost();
+  map.closePopup();
+  const box = document.createElement('div');
+  box.className = 'pop';
+  box.innerHTML = `
+    <div class="pop-name">Vuoi passare da un'altra strada?</div>
+    <div class="pop-ctx">Trascina il punto ⊕ sulla strada che vuoi fare: il percorso si ricalcola passando da lì.</div>
+    <button type="button" class="btn">Passa da qui</button>`;
+  viaGhost = L.marker(shape[k], {
+    draggable: true,
+    autoPan: true,
+    zIndexOffset: 3000,
+    icon: L.divIcon({ className: '', html: '<div class="via-ghost">+</div>', iconSize: [34, 34], iconAnchor: [17, 17] }),
+  }).addTo(map);
+  viaGhost.bindPopup(box, { offset: [0, -12], maxWidth: 260, minWidth: 220, autoPanPadding: [60, 60] }).openPopup();
+  box.querySelector('button').addEventListener('click', () => addVia(viaGhost.getLatLng(), k));
+  viaGhost.on('dragstart', () => viaGhost.closePopup());
+  viaGhost.on('dragend', () => addVia(viaGhost.getLatLng(), k));
+});
+
+/** Nuovo passaggio nel tratto del percorso toccato (indice k della geometria). */
+function addVia(latlng, k) {
+  removeGhost();
+  if (!route) return;
+  const list = placed();
+  const i = routeInsertIndex(route.parsed.shape, list, k);
+  const stop = placedStop(latlng.lat, latlng.lng, null, { type: 'through', kind: 'Passaggio', context: 'Aggiunto sul percorso' });
+  // posizione nell'elenco completo (che può avere righe vuote)
+  const anchor = list[i];
+  let idx = anchor ? state.stops.indexOf(anchor) : state.stops.length;
+  if (!anchor) while (idx > 0 && state.stops[idx - 1].status === 'empty') idx--;
+  state.stops.splice(idx, 0, stop);
+  changed();
+  toast(`Aggiunto un passaggio come tappa ${idx + 1}: ricalcolo il percorso da lì.`);
+  reverseGeocode(latlng.lat, latlng.lng)
+    .then((p) => {
+      if (p && state.stops.includes(stop) && stop.lat === latlng.lat) {
+        Object.assign(stop, { name: p.name, query: p.name, context: p.context });
+        changed({ recalc: false });
+      }
+    })
+    .catch(() => {});
+}
 
 function insertStop(stop, where) {
   if (where === 'empty') {
@@ -1017,6 +1081,8 @@ function clearRoute() {
   routeLine.setLatLngs([]);
   routeCasing.setLatLngs([]);
   routeFlow.setLatLngs([]);
+  routeHit.setLatLngs([]);
+  removeGhost();
   if (maneuverMarker) maneuverMarker.remove();
   renderResult();
 }
@@ -1025,6 +1091,7 @@ function drawRoute() {
   routeLine.setLatLngs(route.parsed.shape);
   routeCasing.setLatLngs(route.parsed.shape);
   routeFlow.setLatLngs(route.parsed.shape);
+  routeHit.setLatLngs(route.parsed.shape);
   animateRoute();
   const b = routeLine.getBounds();
   if (b.isValid() && !map.getBounds().contains(b)) map.fitBounds(b, { padding: [30, 30] });
@@ -1343,9 +1410,13 @@ function shareHash() {
 }
 
 function persist() {
+  // solo in questo dispositivo: l'indirizzo della pagina resta pulito (niente tappe nella cronologia del browser)
   writeJson(STORAGE_CURRENT, snapshot());
-  const hash = placed().length ? shareHash() : '';
-  if (location.hash !== hash) history.replaceState(null, '', hash || location.pathname + location.search);
+}
+
+/** Toglie il giro dall'indirizzo dopo averlo letto da un link condiviso. */
+function cleanUrl() {
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
 }
 
 function savedTrips() {
@@ -1421,12 +1492,30 @@ function loadFromHash() {
   } catch {
     toast('Il link del giro non è valido o è incompleto. Fatti rimandare il link completo.', true);
     return false;
+  } finally {
+    cleanUrl();
   }
 }
 
 window.addEventListener('hashchange', () => {
   // incollare un nuovo link nella stessa scheda
-  if (location.hash.startsWith('#g=') && location.hash !== shareHash()) loadFromHash();
+  if (location.hash.startsWith('#g=')) loadFromHash();
+});
+
+// Cancella tutto ciò che l'app conserva in questo dispositivo
+$('#btn-wipe').addEventListener('click', async () => {
+  if (!confirm('Cancellare giri salvati, giro in corso, preferenze e mappa salvata in questo dispositivo? Non si può annullare.')) return;
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('tracceMoto.')) localStorage.removeItem(k);
+  } catch {
+    // memoria non disponibile: niente da cancellare
+  }
+  if (window.caches) {
+    // si tiene solo l'app (serve per aprirla offline), si cancellano le tile della mappa
+    for (const k of await caches.keys()) if (!k.startsWith('tracce-shell-')) await caches.delete(k);
+  }
+  cleanUrl();
+  location.reload();
 });
 
 // ---------------------------------------------------------------------------
