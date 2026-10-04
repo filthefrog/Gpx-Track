@@ -21,10 +21,11 @@ import {
   curvature,
   nearestShapeIndex,
   routeInsertIndex,
-} from './core.js?v=202610041248';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041248';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041248';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041248';
+} from './core.js?v=202610041257';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041257';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041257';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041257';
+import { startNavigation } from './navigation.js?v=202610041257';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1319,6 +1320,7 @@ function countKm(el, target) {
 function setDock(mode) {
   $('#dock').classList.toggle('busy', mode === 'busy');
   const ready = mode === 'ready';
+  $('#btn-go').disabled = !ready;
   $('#btn-tbt-dl').disabled = !ready;
   $('#btn-tbt-share').disabled = !ready;
   if (ready) {
@@ -1497,6 +1499,49 @@ async function share(f) {
     return;
   }
   download(f); // il browser non può condividere file
+}
+
+// ---------------------------------------------------------------------------
+// Navigazione
+// ---------------------------------------------------------------------------
+
+let navigation = null;
+
+$('#btn-go').addEventListener('click', () => {
+  if (!exportReady()) return;
+  $('#go-sheet').hidden = false;
+});
+$('#go-cancel').addEventListener('click', () => ($('#go-sheet').hidden = true));
+$('#go-sheet').addEventListener('click', (e) => {
+  if (e.target.id === 'go-sheet') $('#go-sheet').hidden = true;
+});
+$('#go-start').addEventListener('click', () => beginNavigation(false));
+$('#go-sim').addEventListener('click', () => beginNavigation(true));
+
+function beginNavigation(simulate) {
+  $('#go-sheet').hidden = true;
+  if (!exportReady() || navigation) return;
+  map.closePopup();
+  removeGhost();
+  navigation = startNavigation({
+    map,
+    route,
+    // tappe come calcolate (in panoramica ogni tappa chiude una tratta)
+    stops: exportStops().map((s) => ({ ...s, ...(route.scenic ? { type: 'break' } : {}) })),
+    options: state.options,
+    simulate,
+    // dopo un ricalcolo in viaggio si disegna il nuovo percorso
+    drawShape: (shape) => {
+      routeLine.setLatLngs(shape);
+      routeCasing.setLatLngs(shape);
+      routeHit.setLatLngs([]);
+    },
+    onExit: () => {
+      navigation = null;
+      if (route) drawRoute();
+      setTimeout(fitAll, 120);
+    },
+  });
 }
 
 const exportButtons = {
