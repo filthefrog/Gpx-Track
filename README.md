@@ -62,6 +62,11 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
   questi punti non compaiono come tappe nel GPX. Di default si sale dal versante rivolto verso la tappa precedente.
   Dopo il calcolo, se in automatico il percorso sale e torna indietro dallo stesso versante, l'app lo segnala
   sotto il passo e propone «Fai il passo completo».
+- **Pannello abbassabile**: tocca o trascina in giù la levetta in cima al pannello (oppure il pulsante ↕ sulla
+  mappa): la mappa occupa tutto lo schermo e resta solo la barra con km, tempo e «Scarica GPX». Trascinala in su
+  o toccala di nuovo per riaprire le opzioni.
+- **Verso di marcia**: sul percorso scorrono lentamente delle frecce bianche nella direzione del giro (ferme se
+  sull'iPhone è attivo «Riduci movimento»).
 - **Mappa**: «Stradale (nitida)» (CARTO Voyager, con tile ad alta risoluzione per gli schermi Retina) è quella
   predefinita; restano OpenStreetMap e OpenTopoMap. L'app ricorda la mappa scelta.
 - **Passare da una strada precisa**: tocca la linea del percorso, compare un punto ⊕; trascinalo sulla strada che

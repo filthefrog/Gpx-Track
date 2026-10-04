@@ -22,10 +22,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041243">
+  <link rel="stylesheet" href="css/style.css?v=202610041248">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041243"></script>
+  <script type="module" src="js/app.js?v=202610041248"></script>
 </head>
 <body>
   <div class="app">
@@ -38,7 +38,7 @@
         <button type="button" class="map-btn" id="btn-fit" title="Mostra tutto il giro" aria-label="Mostra tutto il giro">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
         </button>
-        <button type="button" class="map-btn mobile-only" id="btn-expand" title="Ingrandisci la mappa" aria-label="Ingrandisci la mappa" aria-pressed="false">
+        <button type="button" class="map-btn mobile-only" id="btn-expand" title="Mappa a tutto schermo" aria-label="Mappa a tutto schermo" aria-pressed="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M7 9l5-5 5 5M7 15l5 5 5-5"/></svg>
         </button>
       </div>
@@ -46,6 +46,8 @@
     </div>
 
     <main class="panel" id="panel">
+      <button type="button" class="sheet-handle mobile-only" id="sheet-handle" aria-expanded="true"
+              aria-label="Abbassa il pannello e ingrandisci la mappa"><span></span></button>
       <header class="top">
         <img class="logo" src="icons/icon.svg" alt="" width="42" height="42">
         <div class="top-text">

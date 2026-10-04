@@ -21,10 +21,10 @@ import {
   curvature,
   nearestShapeIndex,
   routeInsertIndex,
-} from './core.js?v=202610041243';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041243';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041243';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041243';
+} from './core.js?v=202610041248';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041248';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041248';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041248';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -127,8 +127,6 @@ L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0a6ccf';
 const routeCasing = L.polyline([], { color: cssVar('--route-casing'), weight: 10, opacity: 0.9, interactive: false, lineCap: 'round' }).addTo(map);
 const routeLine = L.polyline([], { color: cssVar('--route'), weight: 6, opacity: 1, interactive: false, lineCap: 'round', className: 'route-line' }).addTo(map);
-// trattini bianchi che scorrono lungo il percorso
-const routeFlow = L.polyline([], { color: '#ffffff', weight: 2, opacity: 0.85, dashArray: '2 14', interactive: false, className: 'route-flow' }).addTo(map);
 // fascia invisibile più larga della linea: rende facile toccare il percorso col dito
 const routeHit = L.polyline([], { color: '#000', weight: 28, opacity: 0, interactive: true, className: 'route-hit' }).addTo(map);
 let viaGhost = null;
@@ -333,10 +331,62 @@ function fitAll() {
 
 $('#btn-fit').addEventListener('click', fitAll);
 
-$('#btn-expand').addEventListener('click', (e) => {
-  const on = document.querySelector('.app').classList.toggle('map-expanded');
-  e.currentTarget.setAttribute('aria-pressed', String(on));
-  setTimeout(() => map.invalidateSize(), 250);
+// ---------------------------------------------------------------------------
+// Pannello abbassabile: la mappa a tutto schermo, resta solo la barra in basso
+// ---------------------------------------------------------------------------
+
+const appEl = document.querySelector('.app');
+const mapWrap = document.querySelector('.map-wrap');
+
+function setSheet(collapsed) {
+  // altezza che resta al pannello abbassato: levetta + barra in basso
+  const peek = $('#sheet-handle').offsetHeight + $('#dock').offsetHeight + 4;
+  appEl.style.setProperty('--peek', `${peek}px`);
+  appEl.classList.toggle('sheet-collapsed', collapsed);
+  $('#sheet-handle').setAttribute('aria-expanded', String(!collapsed));
+  $('#sheet-handle').setAttribute('aria-label', collapsed ? 'Alza il pannello delle opzioni' : 'Abbassa il pannello e ingrandisci la mappa');
+  $('#btn-expand').setAttribute('aria-pressed', String(collapsed));
+  // la mappa si adatta alla nuova altezza durante e dopo la transizione
+  map.invalidateSize({ pan: false });
+  setTimeout(() => map.invalidateSize({ pan: false }), 380);
+}
+
+$('#btn-expand').addEventListener('click', () => setSheet(!appEl.classList.contains('sheet-collapsed')));
+
+// trascinare la levetta: la mappa segue il dito, al rilascio il pannello si apre o si chiude
+$('#sheet-handle').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  const handle = e.currentTarget;
+  handle.setPointerCapture(e.pointerId);
+  const startY = e.clientY;
+  const startH = mapWrap.offsetHeight;
+  const collapsed = appEl.classList.contains('sheet-collapsed');
+  const peek = handle.offsetHeight + $('#dock').offsetHeight + 4;
+  const maxH = window.innerHeight - peek;
+  const minH = window.innerHeight * 0.3;
+  let moved = false;
+  mapWrap.style.transition = 'none';
+  const move = (ev) => {
+    const dy = ev.clientY - startY;
+    if (Math.abs(dy) > 6) moved = true;
+    if (!moved) return;
+    // mentre si trascina verso l'alto dal pannello abbassato, il contenuto torna visibile
+    if (collapsed && dy < 0) appEl.classList.remove('sheet-collapsed');
+    mapWrap.style.height = `${Math.max(minH, Math.min(maxH, startH + dy))}px`;
+  };
+  const up = (ev) => {
+    handle.removeEventListener('pointermove', move);
+    handle.removeEventListener('pointerup', up);
+    handle.removeEventListener('pointercancel', up);
+    const dy = ev.clientY - startY;
+    mapWrap.style.transition = '';
+    mapWrap.style.height = '';
+    if (!moved) setSheet(!collapsed); // tocco: apre o chiude
+    else setSheet(collapsed ? dy > -40 : dy > 60); // trascinamento: basta un po' di movimento
+  };
+  handle.addEventListener('pointermove', move);
+  handle.addEventListener('pointerup', up);
+  handle.addEventListener('pointercancel', up);
 });
 
 function locate() {
@@ -1101,8 +1151,8 @@ function clearRoute() {
   routeKey = '';
   routeLine.setLatLngs([]);
   routeCasing.setLatLngs([]);
-  routeFlow.setLatLngs([]);
   routeHit.setLatLngs([]);
+  layoutArrows();
   removeGhost();
   if (maneuverMarker) maneuverMarker.remove();
   renderResult();
@@ -1111,12 +1161,95 @@ function clearRoute() {
 function drawRoute() {
   routeLine.setLatLngs(route.parsed.shape);
   routeCasing.setLatLngs(route.parsed.shape);
-  routeFlow.setLatLngs(route.parsed.shape);
   routeHit.setLatLngs(route.parsed.shape);
   animateRoute();
   const b = routeLine.getBounds();
   if (b.isValid() && !map.getBounds().contains(b)) map.fitBounds(b, { padding: [30, 30] });
+  layoutArrows();
+  // le frecce compaiono quando la linea ha finito di disegnarsi
+  arrowSvg.style.opacity = '0';
+  setTimeout(() => (arrowSvg.style.opacity = ''), reduceMotion ? 0 : 1300);
 }
+
+// ---------------------------------------------------------------------------
+// Frecce che scorrono lungo il percorso, nel verso di marcia
+// ---------------------------------------------------------------------------
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const ARROW_SPEED = 38; // pixel al secondo: lente, per leggere il verso
+const ARROW_GAP = 90; // distanza tra le frecce in pixel
+const ARROW_MAX = 90;
+map.createPane('arrows');
+const arrowPane = map.getPane('arrows');
+arrowPane.style.zIndex = '450';
+arrowPane.style.pointerEvents = 'none';
+const arrowSvg = document.createElementNS(SVG_NS, 'svg');
+arrowSvg.setAttribute('class', 'route-arrows');
+arrowPane.appendChild(arrowSvg);
+let arrowGeo = null; // { pts, cum, total, gap }
+let arrowEls = [];
+let arrowFrame = 0;
+
+/** Ricalcola la linea in pixel (cambia solo con lo zoom) e prepara le frecce. */
+function layoutArrows() {
+  if (!route) {
+    arrowGeo = null;
+    arrowSvg.textContent = '';
+    arrowEls = [];
+    return;
+  }
+  const pts = route.parsed.shape.map((ll) => map.latLngToLayerPoint(ll));
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
+  const total = cum[cum.length - 1];
+  const gap = Math.max(ARROW_GAP, total / ARROW_MAX);
+  const count = Math.min(ARROW_MAX + 1, Math.ceil(total / gap) + 1);
+  while (arrowEls.length < count) {
+    const el = document.createElementNS(SVG_NS, 'path');
+    el.setAttribute('d', 'M-6.5,-7 L6.5,0 L-6.5,7 L-3,0 Z');
+    el.setAttribute('class', 'route-arrow');
+    arrowSvg.appendChild(el);
+    arrowEls.push(el);
+  }
+  while (arrowEls.length > count) arrowEls.pop().remove();
+  arrowGeo = { pts, cum, total, gap };
+  placeArrows(performance.now());
+}
+
+function placeArrows(t) {
+  if (!arrowGeo) return;
+  const { pts, cum, total, gap } = arrowGeo;
+  const offset = reduceMotion ? gap / 2 : ((t / 1000) * ARROW_SPEED) % gap;
+  let seg = 1;
+  arrowEls.forEach((el, i) => {
+    const d = offset + i * gap;
+    if (d >= total) {
+      el.style.display = 'none';
+      return;
+    }
+    while (seg < pts.length - 1 && cum[seg] < d) seg++;
+    const a = pts[seg - 1];
+    const b = pts[seg];
+    const len = cum[seg] - cum[seg - 1] || 1;
+    const k = (d - cum[seg - 1]) / len;
+    const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+    el.style.display = '';
+    el.setAttribute('transform', `translate(${(a.x + (b.x - a.x) * k).toFixed(1)},${(a.y + (b.y - a.y) * k).toFixed(1)}) rotate(${angle.toFixed(1)})`);
+  });
+}
+
+function arrowLoop(t) {
+  if (arrowGeo && document.visibilityState === 'visible') placeArrows(t);
+  arrowFrame = requestAnimationFrame(arrowLoop);
+}
+if (!reduceMotion) arrowFrame = requestAnimationFrame(arrowLoop);
+
+// durante l'animazione dello zoom le posizioni in pixel cambiano: si nascondono e si ricalcolano
+map.on('zoomstart', () => arrowSvg.classList.add('hidden'));
+map.on('zoomend viewreset', () => {
+  layoutArrows();
+  arrowSvg.classList.remove('hidden');
+});
 
 function setStatus(text, kind = '') {
   const el = $('#route-status');

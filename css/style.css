@@ -91,7 +91,6 @@ a { color: var(--accent); }
 @keyframes drop { 0% { opacity: 0; transform: translateY(-46px) scale(0.6); } 60% { opacity: 1; transform: translateY(4px) scale(1.05); } 80% { transform: translateY(-2px); } 100% { transform: none; } }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(31 107 255 / 45%); } 50% { box-shadow: 0 0 0 7px rgb(31 107 255 / 0%); } }
 @keyframes shimmer { from { transform: translateX(-120%) skewX(-20deg); } to { transform: translateX(260%) skewX(-20deg); } }
-@keyframes flow { to { stroke-dashoffset: -32; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes slide-up { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes stripe { from { background-position: 0 0; } to { background-position: 40px 0; } }
@@ -102,7 +101,10 @@ a { color: var(--accent); }
 .app { height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
 
 .map-wrap { position: relative; z-index: 1; height: var(--map-h); flex: none; transition: height 0.35s var(--ease); }
-.app.map-expanded { --map-h: 72dvh; }
+/* pannello abbassato: la mappa prende tutto, del pannello resta la barra in basso */
+.app.sheet-collapsed { --map-h: calc(100dvh - var(--peek, 110px) + 22px); } /* +22: il pannello sale già di 22px sulla mappa */
+.app.sheet-collapsed .panel { overflow: hidden; }
+.app.sheet-collapsed .panel > :not(.dock):not(.sheet-handle) { display: none; }
 #map { position: absolute; inset: 0; background: var(--field); }
 /* sfumatura in basso: la mappa entra nel foglio del pannello */
 .map-wrap::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40px; z-index: 450; pointer-events: none; background: linear-gradient(to bottom, transparent, rgb(0 0 0 / 12%)); }
@@ -124,7 +126,27 @@ a { color: var(--accent); }
   border-radius: 24px 24px 0 0;
   box-shadow: 0 -10px 30px rgb(0 0 0 / 14%);
 }
-.panel::before { content: ""; position: absolute; top: 7px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: var(--line); }
+/* levetta del pannello: si tocca o si trascina */
+.sheet-handle {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(100% + 24px);
+  height: 26px;
+  margin: -18px -12px 0;
+  padding: 0;
+  border: 0;
+  background: linear-gradient(var(--bg) 65%, transparent);
+  border-radius: 24px 24px 0 0;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-handle span { width: 42px; height: 5px; border-radius: 3px; background: var(--muted); opacity: 0.45; transition: width 0.25s var(--spring), opacity 0.2s; }
+.sheet-handle:active span { width: 56px; opacity: 0.8; }
+.app.sheet-collapsed .sheet-handle span { width: 56px; opacity: 0.7; }
 
 @media (min-width: 900px) {
   .app { flex-direction: row-reverse; }
@@ -132,7 +154,7 @@ a { color: var(--accent); }
   .map-wrap::after { display: none; }
   .mobile-only { display: none !important; }
   .panel { flex: none; width: 440px; margin-top: 0; border-radius: 0; border-right: 1px solid var(--line); padding-top: max(14px, env(safe-area-inset-top)); box-shadow: 10px 0 30px rgb(0 0 0 / 10%); }
-  .panel::before { display: none; }
+
 }
 
 /* pulsanti sulla mappa (sotto la status bar di iPhone) */
@@ -671,7 +693,10 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
 
 /* percorso: si disegna e poi "scorre" */
 .route-line { transition: stroke-dashoffset 1.4s var(--ease); }
-.route-flow { animation: flow 1.1s linear infinite; }
+/* frecce del verso di marcia */
+.route-arrows { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; transition: opacity 0.4s; }
+.route-arrows.hidden { display: none; }
+.route-arrow { fill: #fff; stroke: var(--route); stroke-width: 1.5; stroke-linejoin: round; filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 45%)); }
 
 .via-ghost {
   width: 34px;
