@@ -6,6 +6,8 @@ import {
   parseTrip,
   buildTrackGpx,
   buildRouteGpx,
+  buildTurnByTurnGpx,
+  turnByTurnInstructions,
   buildRoutePoints,
   roadbookText,
   formatKm,
@@ -362,7 +364,6 @@ $('#quick-form').addEventListener('submit', async (e) => {
     .map((x) => x.trim())
     .filter(Boolean);
   if (names.length < 2) return toast('Scrivi almeno due località, una per riga (partenza e arrivo).', true);
-  if (state.stops.length && !confirm('Sostituire le tappe attuali con queste località?')) return;
   const btn = $('#quick-btn');
   btn.disabled = true;
   const found = [];
@@ -379,7 +380,7 @@ $('#quick-form').addEventListener('submit', async (e) => {
     return;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Crea giro';
+    btn.textContent = 'Calcola il percorso';
   }
   if (missing.length) {
     toast(`Non trovate: ${missing.join(', ')}. Aggiungi la provincia (es. «Gavia, Sondrio») e riprova.`, true);
@@ -388,7 +389,7 @@ $('#quick-form').addEventListener('submit', async (e) => {
   state.stops = found;
   changed();
   fitAll();
-  toast(`Giro creato con ${found.length} tappe: il percorso si sta calcolando.`);
+  $('#result-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 document.querySelectorAll('input[name="insert-mode"]').forEach((r) =>
@@ -553,7 +554,9 @@ function short(name) {
 function renderResult() {
   const has = !!route;
   $('#route-summary').hidden = !has;
-  for (const id of ['#btn-track-dl', '#btn-track-share', '#btn-route-dl', '#btn-route-share', '#btn-copy-roadbook']) $(id).disabled = !has;
+  for (const id of ['#btn-tbt-dl', '#btn-tbt-share', '#btn-track-dl', '#btn-track-share', '#btn-route-dl', '#btn-route-share', '#btn-copy-roadbook'])
+    $(id).disabled = !has;
+  $('#tbt-count').textContent = '';
   const rb = $('#roadbook');
   rb.textContent = '';
   $('#roadbook-empty').hidden = has;
@@ -575,6 +578,8 @@ function renderResult() {
     li.querySelector('.leg-num').textContent = `${formatKm(leg.length)} · ${formatDuration(leg.time)}`;
     $('#legs').appendChild(li);
   });
+
+  $('#tbt-count').textContent = `Contiene ${turnByTurnInstructions(p).length} istruzioni.`;
 
   const pts = buildRoutePoints(p, route.stops, route.loop);
   const shaping = pts.filter((x) => x.kind === 'shaping').length;
@@ -622,6 +627,10 @@ function gpxFile(kind) {
   const now = new Date();
   // nomi aggiornati delle tappe (possono essere stati rinominati dopo il calcolo)
   const stops = state.stops.map((s) => ({ ...s }));
+  if (kind === 'turn-by-turn') {
+    const res = buildTurnByTurnGpx({ name, stops, loop: route.loop, parsed: route.parsed, time: now });
+    return { xml: res.xml, filename: gpxFileName(name, now, 'turn-by-turn') };
+  }
   if (kind === 'traccia') {
     const xml = buildTrackGpx({ name, stops, loop: route.loop, parsed: route.parsed, time: now });
     return { xml, filename: gpxFileName(name, now, 'traccia') };
@@ -660,6 +669,8 @@ async function share(f) {
   download(f);
 }
 
+$('#btn-tbt-dl').addEventListener('click', () => exportReady() && download(gpxFile('turn-by-turn')));
+$('#btn-tbt-share').addEventListener('click', () => exportReady() && share(gpxFile('turn-by-turn')));
 $('#btn-track-dl').addEventListener('click', () => exportReady() && download(gpxFile('traccia')));
 $('#btn-route-dl').addEventListener('click', () => exportReady() && download(gpxFile('rotta')));
 $('#btn-track-share').addEventListener('click', () => exportReady() && share(gpxFile('traccia')));
@@ -715,6 +726,7 @@ function applySnapshot(s) {
   state.options = { ...DEFAULT_OPTIONS, ...(s.options || {}) };
   state.stops = (s.stops || []).map((x) => makeStop(x.lat, x.lon, x.name, { type: x.type === 'through' ? 'through' : 'break', custom: x.custom ?? true }));
   syncControls();
+  $('#quick-input').value = state.stops.map((x) => x.name).join('\n');
   clearRoute();
   changed();
   fitAll();

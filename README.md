@@ -9,10 +9,32 @@ con **BMW Motorrad Connected** o con un navigatore montato sulla predisposizione
 - Percorsi calcolati da [Valhalla](https://valhalla.github.io/valhalla/) sul server pubblico FOSSGIS, con profilo moto.
 - Ricerca luoghi con [Nominatim](https://nominatim.org/).
 
+## In breve
+
+1. Scrivi le località in ordine, una per riga (es. Sirolo, Passo dello Stelvio, Passo di Gavia, Ponte di Legno).
+2. Scegli le preferenze (per esempio autostrade «Evita»).
+3. Tocca **Calcola il percorso**, poi **Scarica GPX turn by turn** o **Invia a…** per aprirlo direttamente
+   nell'app che usi (OsmAnd o simili).
+
+Il file `nome-del-giro_AAAA-MM-GG_turn-by-turn.gpx` contiene tutto in un solo GPX 1.1:
+
+- `wpt`: le tappe, numerate;
+- `rte`: un punto per ogni manovra, esattamente sull'incrocio, con
+  - `name` breve: `12,4 km Destra su SP5`, `31,0 km Rotonda, 2ª uscita su SS38`, `48,2 km Tieni la sinistra verso Bormio`;
+  - `cmt`: l'istruzione completa in italiano;
+  - `desc`: istruzione, direzione dei cartelli se nota, km dalla partenza, km e tempo fino alla manovra successiva;
+  - estensioni OsmAnd: `osmand:offset` (indice del punto nella traccia), `osmand:turn` (TL, TR, KL, RNDB2…),
+    `osmand:time` (secondi fino alla manovra successiva). Per questo il file dichiara `creator="OsmAndRouter"`:
+    è il segnale con cui OsmAnd riconosce un percorso con indicazioni già calcolate;
+- `trk`: il tracciato strada per strada (semplificato entro 4 m, con gli incroci esatti).
+
+Le app che non conoscono le estensioni OsmAnd mostrano comunque la traccia e i nomi delle svolte.
+Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) non generano istruzioni separate.
+
 ## Funzioni
 
-- **Giro dalle località**: scrivi le località una per riga (es. Sirolo, Passo dello Stelvio, Passo di Gavia,
-  Ponte di Legno) e tocca «Crea giro»: le tappe vengono cercate in ordine e il percorso si calcola da solo.
+- **Località in ordine**: una per riga; le tappe vengono cercate in ordine e il percorso si calcola da solo.
+  Se una località è sbagliata si corregge in «Modifica le tappe a mano» (ricerca, tocco sulla mappa, marker trascinabili).
 - **Tappe**: partenza, intermedie e arrivo, dalla ricerca (premi invio) o toccando la mappa.
   Ogni nuovo punto va «in fondo» oppure «come intermedia»: in questo caso viene inserito dove allunga meno il giro.
   I marker sono numerati e trascinabili; le tappe si riordinano con le frecce, si rinominano e si eliminano.
@@ -27,7 +49,9 @@ con **BMW Motorrad Connected** o con un navigatore montato sulla predisposizione
 - **Salvataggio** dei giri sul dispositivo e **link condivisibile**: lo stato del giro è nell'indirizzo, quindi un link
   aperto sul telefono mostra lo stesso giro preparato sul PC.
 
-## Traccia o Rotta?
+## Altri formati: Traccia e Rotta (navigatori Garmin e BMW)
+
+Nella sezione «Altri formati» restano i due file pensati per i navigatori dedicati.
 
 | | **Traccia** (`…_traccia.gpx`) | **Rotta** (`…_rotta.gpx`) |
 |---|---|---|

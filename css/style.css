@@ -181,7 +181,31 @@ a { color: var(--accent); }
   padding: 14px;
   margin: 12px 0;
 }
-.card h2 { font-size: 17px; margin: 0 0 10px; }
+.card h2 { font-size: 17px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.card h3 { font-size: 16px; margin: 0; }
+.step {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  display: inline-grid;
+  place-items: center;
+  font-size: 14px;
+  flex: none;
+}
+.main-export { margin-top: 12px; }
+.main-export .btn:first-child { flex: 2; }
+details.more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; min-height: 32px; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary h2 { margin: 0; }
+details.more > summary::after { content: "›"; font-size: 24px; color: var(--muted); transition: transform 0.15s; }
+details.more[open] > summary::after { transform: rotate(90deg); }
+details.more[open] > summary { margin-bottom: 10px; }
+.sub { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+.sub:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+.sub > h3 { margin-bottom: 10px; }
+.sub .card-head h3 { margin: 0; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .card-head h2 { margin: 0; }
 
@@ -201,6 +225,8 @@ input[type="text"], input[type="search"] {
   appearance: none;
 }
 textarea {
+  font-family: inherit;
+  line-height: 1.5;
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;

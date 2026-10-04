@@ -52,47 +52,18 @@
       </header>
 
       <section class="card" aria-labelledby="h-quick">
-        <h2 id="h-quick">Giro dalle località</h2>
+        <h2 id="h-quick"><span class="step">1</span>Località in ordine</h2>
         <form id="quick-form">
           <textarea id="quick-input" rows="4" autocomplete="off" autocapitalize="words"
                     aria-label="Località, una per riga"
                     placeholder="Una località per riga, dalla partenza all'arrivo:&#10;Sirolo&#10;Passo dello Stelvio&#10;Passo di Gavia&#10;Ponte di Legno"></textarea>
-          <button type="submit" class="btn wide" id="quick-btn">Crea giro</button>
+          <button type="submit" class="btn wide" id="quick-btn">Calcola il percorso</button>
         </form>
-        <p class="hint">Sostituisce le tappe attuali. Per ogni località uso il primo risultato della ricerca: controlla i nomi nell'elenco delle tappe.</p>
-      </section>
-
-      <section class="card" aria-labelledby="h-search">
-        <h2 id="h-search">Aggiungi tappe</h2>
-        <form id="search-form" class="search" role="search">
-          <input id="search-input" type="search" enterkeyhint="search" autocomplete="off"
-                 placeholder="Cerca un luogo e premi invio" aria-label="Cerca un luogo">
-          <button type="submit" class="btn">Cerca</button>
-        </form>
-        <ul id="search-results" class="results" hidden></ul>
-        <div class="row-label">Nuovi punti</div>
-        <div class="segmented" role="radiogroup" aria-label="Dove aggiungere i nuovi punti">
-          <label><input type="radio" name="insert-mode" value="end" checked><span>In fondo</span></label>
-          <label><input type="radio" name="insert-mode" value="middle"><span>Come intermedia</span></label>
-        </div>
-        <p class="hint">Oppure tocca la mappa: si apre il nome del punto con il pulsante «Aggiungi».</p>
-      </section>
-
-      <section class="card" aria-labelledby="h-stops">
-        <div class="card-head">
-          <h2 id="h-stops">Tappe</h2>
-          <button type="button" class="btn small ghost" id="btn-clear">Svuota</button>
-        </div>
-        <ol id="stops" class="stops"></ol>
-        <p class="hint" id="stops-empty">Nessuna tappa. Cerca un luogo o tocca la mappa per scegliere la partenza.</p>
-        <label class="switch">
-          <input type="checkbox" id="opt-loop">
-          <span>Torna alla partenza (anello)</span>
-        </label>
+        <p class="hint">Dalla partenza all'arrivo, una per riga. Per ogni località uso il primo risultato della ricerca: se è sbagliata aggiungi la provincia (es. «Gavia, Sondrio») oppure correggila in «Modifica le tappe a mano».</p>
       </section>
 
       <section class="card" aria-labelledby="h-prefs">
-        <h2 id="h-prefs">Preferenze</h2>
+        <h2 id="h-prefs"><span class="step">2</span>Preferenze</h2>
         <div class="row-label">Autostrade</div>
         <div class="segmented" role="radiogroup" aria-label="Autostrade">
           <label><input type="radio" name="highways" value="0"><span>Evita</span></label>
@@ -110,7 +81,7 @@
       </section>
 
       <section class="card" aria-labelledby="h-result" id="result-card">
-        <h2 id="h-result">Percorso</h2>
+        <h2 id="h-result"><span class="step">3</span>Il tuo GPX</h2>
         <div id="route-status" class="status" role="status" aria-live="polite"></div>
         <div id="route-summary" hidden>
           <div class="totals">
@@ -119,10 +90,57 @@
           </div>
           <ol id="legs" class="legs"></ol>
         </div>
+        <div class="btn-row main-export">
+          <button type="button" class="btn" id="btn-tbt-dl" disabled>Scarica GPX turn by turn</button>
+          <button type="button" class="btn secondary" id="btn-tbt-share" disabled>Invia a…</button>
+        </div>
+        <p class="hint">Un solo file: tracciato strada per strada, le tappe e un'istruzione per ogni svolta
+          (es. «12,4 km Destra su SP5», con la distanza fino alla svolta successiva). Le indicazioni sono nel formato
+          di OsmAnd; le altre app mostrano comunque i nomi delle svolte. <span id="tbt-count"></span></p>
       </section>
 
-      <section class="card" aria-labelledby="h-export" id="export-card">
-        <h2 id="h-export">Esporta GPX</h2>
+      <section class="card" aria-labelledby="h-roadbook">
+        <div class="card-head">
+          <h2 id="h-roadbook">Roadbook</h2>
+          <button type="button" class="btn small" id="btn-copy-roadbook" disabled>Copia roadbook</button>
+        </div>
+        <ol id="roadbook" class="roadbook"></ol>
+        <p class="hint" id="roadbook-empty">Le indicazioni compaiono dopo il calcolo del percorso.</p>
+      </section>
+
+      <details class="card more" id="manual-card">
+        <summary><h2>Modifica le tappe a mano</h2></summary>
+      <div class="sub" aria-labelledby="h-search">
+        <h3 id="h-search">Aggiungi tappe</h3>
+        <form id="search-form" class="search" role="search">
+          <input id="search-input" type="search" enterkeyhint="search" autocomplete="off"
+                 placeholder="Cerca un luogo e premi invio" aria-label="Cerca un luogo">
+          <button type="submit" class="btn">Cerca</button>
+        </form>
+        <ul id="search-results" class="results" hidden></ul>
+        <div class="row-label">Nuovi punti</div>
+        <div class="segmented" role="radiogroup" aria-label="Dove aggiungere i nuovi punti">
+          <label><input type="radio" name="insert-mode" value="end" checked><span>In fondo</span></label>
+          <label><input type="radio" name="insert-mode" value="middle"><span>Come intermedia</span></label>
+        </div>
+        <p class="hint">Oppure tocca la mappa: si apre il nome del punto con il pulsante «Aggiungi».</p>
+      </div>
+      <div class="sub" aria-labelledby="h-stops">
+        <div class="card-head">
+          <h3 id="h-stops">Tappe</h3>
+          <button type="button" class="btn small ghost" id="btn-clear">Svuota</button>
+        </div>
+        <ol id="stops" class="stops"></ol>
+        <p class="hint" id="stops-empty">Nessuna tappa. Cerca un luogo o tocca la mappa per scegliere la partenza.</p>
+        <label class="switch">
+          <input type="checkbox" id="opt-loop">
+          <span>Torna alla partenza (anello)</span>
+        </label>
+      </div>
+      </details>
+
+      <details class="card more" id="export-card">
+        <summary><h2 id="h-export">Altri formati (navigatori Garmin e BMW)</h2></summary>
         <div class="export">
           <div class="export-item">
             <div>
@@ -145,16 +163,7 @@
             </div>
           </div>
         </div>
-      </section>
-
-      <section class="card" aria-labelledby="h-roadbook">
-        <div class="card-head">
-          <h2 id="h-roadbook">Roadbook</h2>
-          <button type="button" class="btn small" id="btn-copy-roadbook" disabled>Copia roadbook</button>
-        </div>
-        <ol id="roadbook" class="roadbook"></ol>
-        <p class="hint" id="roadbook-empty">Le indicazioni compaiono dopo il calcolo del percorso.</p>
-      </section>
+      </details>
 
       <section class="card" aria-labelledby="h-saved">
         <h2 id="h-saved">Giri salvati</h2>
