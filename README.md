@@ -133,6 +133,18 @@ npm run versione
 Se dopo un aggiornamento l'app sembra quella vecchia, chiudi la scheda di Safari (o l'app dalla schermata Home)
 e riaprila.
 
+### App installabile (PWA)
+
+Tracce Moto è una Progressive Web App:
+
+- **Installazione**: su iPhone Safari › Condividi › «Aggiungi alla schermata Home» (l'app lo ricorda con un avviso
+  la prima volta); su Android e sui browser desktop compare il pulsante **Installa**.
+- **Offline**: un service worker (`sw.js`) conserva l'app e Leaflet, quindi si apre subito anche senza rete,
+  e tiene in memoria le porzioni di mappa già viste (fino a 1500 tile). Ricerca, calcolo del percorso e
+  versanti dei passi richiedono comunque la rete.
+- **Aggiornamenti**: quando pubblichi una nuova versione compare «Nuova versione disponibile · Aggiorna».
+  `npm run versione` aggiorna insieme i `?v=` dei file e la cache del service worker.
+
 ### Aggiungerla alla schermata Home di iPhone
 
 Apri l'indirizzo in **Safari** › tasto **Condividi** › **Aggiungi alla schermata Home**. L'app si apre a tutto schermo.
@@ -209,6 +221,8 @@ Consigli:
 
 ```
 index.html              pagina, meta per iPhone, Leaflet da cdnjs
+sw.js                   service worker: app offline e cache della mappa
+manifest.webmanifest    manifest della PWA (icone, colori, avvio a tutto schermo)
 css/style.css           stile mobile first, tema chiaro e scuro, safe area
 js/core.js              funzioni pure: polyline, RDP, inserimento tappe, GPX, roadbook, stato nell'URL
 js/places.js            funzioni pure per i luoghi: coordinate, varianti di ricerca, ordine dei risultati
