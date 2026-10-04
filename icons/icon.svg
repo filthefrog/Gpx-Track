@@ -1,7 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0a6ccf"/>
-  <path d="M96 396 C 170 396, 150 300, 236 290 S 330 196, 300 150 S 360 92, 416 116" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M96 396 C 170 396, 150 300, 236 290 S 330 196, 300 150 S 360 92, 416 116" fill="none" stroke="#0a6ccf" stroke-width="8" stroke-linecap="round" stroke-dasharray="18 22"/>
-  <circle cx="96" cy="396" r="34" fill="#2ecc71" stroke="#fff" stroke-width="12"/>
-  <circle cx="416" cy="116" r="34" fill="#ff5a4f" stroke="#fff" stroke-width="12"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16244a"/>
+      <stop offset="1" stop-color="#07090e"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#3fa9f5"/>
+      <stop offset="0.55" stop-color="#2f6bff"/>
+      <stop offset="1" stop-color="#ff2d46"/>
+    </linearGradient>
+    <clipPath id="clip"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <rect class="bg" width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g clip-path="url(#clip)" transform="rotate(-35 256 256)">
+    <rect x="-300" y="40" width="1112" height="24" fill="#3fa9f5"/>
+    <rect x="-300" y="64" width="1112" height="24" fill="#1c3f94"/>
+    <rect x="-300" y="88" width="1112" height="24" fill="#e4002b"/>
+  </g>
+  <path d="M104 408 C 176 408 150 318 236 300 S 340 230 300 178 S 352 108 410 124" fill="none" stroke="url(#road)" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M104 408 C 176 408 150 318 236 300 S 340 230 300 178 S 352 108 410 124" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-dasharray="20 22" opacity="0.9"/>
+  <circle cx="104" cy="408" r="30" fill="#07090e" stroke="#3fa9f5" stroke-width="12"/>
+  <circle cx="410" cy="124" r="30" fill="#07090e" stroke="#ff2d46" stroke-width="12"/>
 </svg>
