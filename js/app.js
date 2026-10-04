@@ -18,10 +18,10 @@ import {
   defaultTripName,
   explainValhallaError,
   cumulativeDistances,
-} from './core.js?v=202610040850';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610040850';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610040850';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610040850';
+} from './core.js?v=202610041208';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041208';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041208';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041208';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -945,9 +945,11 @@ function scheduleRecalc() {
     recalcSeq++;
     clearRoute();
     setStatus('');
+    showMapStatus('');
     return;
   }
   setStatus('Calcolo del percorso…', 'busy');
+  showMapStatus('');
   recalcTimer = setTimeout(recalc, RECALC_DELAY);
 }
 
@@ -960,21 +962,31 @@ async function recalc() {
   const stops = routeStops().map((s) => ({ ...s }));
   const loop = state.loop;
   showMapStatus('Calcolo…');
+  let res;
   try {
-    const res = await fetchRoute(stops, loop, state.options, ctrl.signal);
+    res = await fetchRoute(stops, loop, state.options, ctrl.signal);
     if (seq !== recalcSeq) return;
     route = { parsed: parseTrip(res.trip), costing: res.costing, warning: res.warning, stops, loop };
     routeKey = key;
-    setStatus(res.warning || '', res.warning ? 'warn' : '');
-    checkCrossings();
-    renderResult();
-    drawRoute();
   } catch (err) {
     if (err.name === 'AbortError' || seq !== recalcSeq) return;
+    console.error('Calcolo del percorso non riuscito', err);
     clearRoute();
     setStatus(explainValhallaError(err, stops), 'error');
-  } finally {
-    if (seq === recalcSeq) showMapStatus('');
+    // l'errore si vede anche sulla mappa: il dettaglio è nella scheda Percorso
+    showMapStatus('Percorso non calcolato · tocca per i dettagli', 'error');
+    return;
+  }
+  // prima la linea sulla mappa: un problema nel riepilogo non deve nasconderla
+  drawRoute();
+  showMapStatus('');
+  setStatus(res.warning || '', res.warning ? 'warn' : '');
+  try {
+    checkCrossings();
+    renderResult();
+  } catch (err) {
+    console.error('Riepilogo del percorso non riuscito', err);
+    setStatus(`Il percorso è calcolato, ma il riepilogo ha un problema: ${err.message}. Il GPX si può comunque scaricare.`, 'warn');
   }
 }
 
@@ -1018,11 +1030,14 @@ function updateDock() {
   else setDock('busy');
 }
 
-function showMapStatus(text) {
+function showMapStatus(text, kind = '') {
   const el = $('#map-status');
   el.textContent = text;
+  el.className = `map-status ${kind}`;
   el.hidden = !text;
 }
+
+$('#map-status').addEventListener('click', () => $('#result-card').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
 function setDock(mode) {
   const ready = mode === 'ready';

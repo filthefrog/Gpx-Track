@@ -129,6 +129,7 @@ svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 2; fill: no
 .map-btn .fill { fill: currentColor; stroke: none; }
 .map-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 
+.map-status.error { background: var(--err-bg); color: var(--err-text); font-weight: 600; cursor: pointer; }
 .map-status {
   position: absolute;
   z-index: 500;
