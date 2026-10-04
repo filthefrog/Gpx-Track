@@ -591,6 +591,10 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
 .ad-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
 .tool-ad:has(ins[data-ad-status="unfilled"]) { display: none; }
 
+.plus-card { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: var(--text); border-left: 3px solid var(--accent); }
+.plus-card span { color: var(--muted); font-size: 14px; }
+.site-nav .nav-plus { color: var(--accent); }
+
 .donate-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .donate-card .hint { margin: 2px 0 0; }
 .foot-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 8px; }

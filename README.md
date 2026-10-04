@@ -106,6 +106,12 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
   Stampa su strisce da 148,5 mm (rotolo da porta-roadbook) o su A4, oppure GPX **OpenRally** v1.0.3 (validato con
   lo schema ufficiale) per app e dispositivi da roadbook. Requisiti e limiti: [`docs/roadbook.md`](docs/roadbook.md).
 
+## Modello: gratuito oggi, freemium domani
+
+Oggi Traccemoto è gratuito e si sostiene con donazioni e annunci nelle guide; la pagina `/plus/` raccoglie la lista
+d'attesa di Traccemoto Plus (spenta finché non è attivo il database: `waitlist` in `js/config.js`). Decisioni e
+piano: [`docs/freemium.md`](docs/freemium.md).
+
 ## Sito, annunci e donazioni
 
 Traccemoto è un pianificatore gratuito. Si sostiene con gli annunci AdSense e le donazioni:
@@ -309,6 +315,12 @@ js/config.js            configurazione di annunci AdSense e donazioni (vedi docs
 css/sito.css            stile delle pagine di contenuto
 contenuti/*.html        testi di guide, privacy, info e sostieni
 scripts/pagine.mjs      genera guide/, privacy.html, info.html, sostieni.html, sitemap.xml, robots.txt, ads.txt
+scripts/build.mjs       prepara dist/ con i soli file pubblici (Cloudflare Pages)
+functions/api/          Pages Functions: lista d'attesa di Traccemoto Plus (database D1)
+migrations/             tabelle del database D1
+js/roadbook-view.js     anteprima e stampa del roadbook (strumento e convertitore)
+js/convertitore.js      pagina del convertitore GPX → roadbook
+js/plus.js              modulo della lista d'attesa (pagina /plus/)
 js/passes.js            funzioni pure per i passi: versanti dalle strade OSM, passo completo o andata e ritorno
 js/services.js          Valhalla e Nominatim (coda a 1 richiesta al secondo)
 js/legs.js              funzioni pure dei link Google/Apple: punti di forzatura, tratte, URL

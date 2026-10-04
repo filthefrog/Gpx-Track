@@ -17,6 +17,9 @@ export const CONFIG = Object.freeze({
   toolAds: false,
   // Pagina per le donazioni, es. 'https://ko-fi.com/tuonome' oppure 'https://paypal.me/tuonome'
   donateUrl: '',
+  // Lista d'attesa di Traccemoto Plus (pagina /plus/). Accendila solo quando il sito è su Cloudflare Pages con il
+  // database D1 collegato come «DB» (docs/pubblicazione.md): prima il modulo non avrebbe dove salvare le email.
+  waitlist: false,
   // Chi gestisce il sito, per l'informativa privacy (nome e cognome o ragione sociale)
   owner: '',
   // Contatto per privacy e segnalazioni, es. 'mailto:info@traccemoto.it' (casella del dominio inoltrata alla tua

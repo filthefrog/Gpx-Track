@@ -55,6 +55,22 @@ owner: 'Nome e cognome (o ragione sociale)',
 Poi `npm run versione` e push. Link canonici, sitemap, dati strutturati e informativa si aggiornano da soli.
 Aggiungi il sito in **Google Search Console** (proprietà di dominio) e invia `https://traccemoto.it/sitemap.xml`.
 
+## 4b. Lista d'attesa di Traccemoto Plus (facoltativo, gratis)
+
+La pagina `/plus/` raccoglie le email di chi vuole essere avvisato. Il modulo salva i dati con una **Pages
+Function** (`functions/api/lista-attesa.js`, pubblicata da sola insieme al sito) in un database **D1** di Cloudflare
+(piano gratuito).
+
+1. Cloudflare › **Storage & Databases** › **D1** › **Create database**, nome `traccemoto`.
+2. Nella console del database incolla ed esegui il contenuto di `migrations/0001_lista_attesa.sql`.
+3. Workers & Pages › il progetto › **Settings** › **Bindings** › **Add** › **D1 database**: nome variabile `DB`,
+   database `traccemoto` (sia per Production sia per Preview).
+4. In `js/config.js` imposta `waitlist: true`, poi `npm run versione` e push.
+5. Prova: iscriviti dalla pagina `/plus/` e controlla in D1 › Console: `SELECT * FROM lista_attesa;`
+
+Per scrivere agli iscritti, esporta le email dalla console (o con `wrangler d1 export`). Rispetta l'informativa: solo
+messaggi sull'apertura di Plus, e cancella le email dopo il lancio o comunque entro 24 mesi.
+
 ## 5. Repository privato
 
 Solo **dopo** aver visto il sito funzionare sul dominio:

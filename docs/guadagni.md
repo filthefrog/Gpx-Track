@@ -141,11 +141,30 @@ Costi: Ko-fi dichiara 0% di commissione sulle donazioni; restano le commissioni 
 parlano di una commissione del 5% per i nuovi account finché non la si disattiva: **DA VERIFICARE** nelle
 impostazioni di Ko-fi. Alternativa più semplice: un link **PayPal.me** (solo commissioni PayPal).
 
-## 8. Tasse
+## 8. Senza partita IVA (fase attuale)
 
-I soldi di AdSense e delle donazioni sono redditi e vanno dichiarati. Se sono occasionali o se serve la partita
-IVA, e con quale regime, dipende da importi, continuità e dalla tua situazione: **parlane con un commercialista
-prima del primo pagamento**. Qui non metto soglie o percentuali, perché sbagliarle costa caro.
+Scelta di oggi: niente vendite, quindi niente partita IVA. Si guadagna con **donazioni** e **annunci**, e si prepara
+la versione Plus con una lista d'attesa. Il lancio a pagamento (partita IVA, pagamenti, abbonamenti) solo se i
+numeri lo giustificano: vedi `docs/freemium.md`.
+
+Regole per restare coerenti con questa scelta:
+
+- **Le donazioni sono regali, non acquisti.** Nessuna funzione, nessun vantaggio in cambio (niente «dona e sblocchi
+  Plus», niente abbonamenti o articoli del negozio su Ko-fi): se in cambio dei soldi dai qualcosa, diventa una
+  vendita. Il sito lo dice già chiaramente nella pagina Sostieni e nella pagina Plus.
+- **Le entrate vanno comunque dichiarate.** Donazioni e AdSense ricevuti da una persona fisica per un progetto come
+  questo possono essere redditi da dichiarare (per esempio come redditi diversi, se l'attività è occasionale); se
+  diventano continuativi e organizzati, serve la partita IVA. Come vadano trattati nel tuo caso, con quali importi e in
+  quale quadro della dichiarazione, **lo decide il commercialista**: qui non metto soglie, perché sbagliarle costa caro.
+- **AdSense da privato**: l'account si può aprire come persona fisica; i dati fiscali richiesti da Google vanno
+  compilati con il commercialista.
+- Tieni un foglio con tutte le entrate (data, importo, piattaforma): serve comunque.
+
+## Tasse e lancio professionale
+
+Quando arriverà Plus a pagamento: partita IVA (probabilmente regime forfettario: da valutare), condizioni di vendita,
+diritto di recesso per i contenuti digitali e un *merchant of record* (Paddle o Lemon Squeezy) che gestisce l'IVA dei
+clienti europei. Parlane con il commercialista **prima** di incassare il primo abbonamento.
 
 ## 9. Aspettative
 

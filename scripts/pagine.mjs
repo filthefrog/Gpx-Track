@@ -81,6 +81,10 @@ function render(page) {
   body = toolAds
     ? body.replace(/<!--se-strumento-senza-annunci-->[\s\S]*?<!--fine-strumento-senza-annunci-->/g, '').replace(/<!--(?:se|fine)-strumento-con-annunci-->/g, '')
     : body.replace(/<!--se-strumento-con-annunci-->[\s\S]*?<!--fine-strumento-con-annunci-->/g, '').replace(/<!--(?:se|fine)-strumento-senza-annunci-->/g, '');
+  // lista d'attesa di Plus: modulo solo se attiva (serve Cloudflare con il database, vedi docs/pubblicazione.md)
+  body = CONFIG.waitlist
+    ? body.replace(/<!--se-no-lista-->[\s\S]*?<!--fine-no-lista-->/g, '').replace(/<!--(?:se|fine)-lista-->/g, '')
+    : body.replace(/<!--se-lista-->[\s\S]*?<!--fine-lista-->/g, '').replace(/<!--(?:se|fine)-no-lista-->/g, '');
   // posizioni degli annunci: dopo l'introduzione, nei punti <!--annuncio--> del testo, in fondo
   if (withAds) {
     const top = adUnit(slots.top);
@@ -135,6 +139,7 @@ function render(page) {
     </a>
     <nav class="site-nav" aria-label="Sito">
       <a href="${up}guide/">Guide</a>
+      <a class="nav-plus" href="${up}plus/">Plus</a>
       ${donate}
       <a class="nav-cta" href="${up}./">Pianifica</a>
     </nav>
@@ -148,6 +153,7 @@ ${body.trim()}
     <nav aria-label="Pagine">
       <a href="${up}./">Pianifica un giro</a>
       <a href="${up}guide/">Guide</a>
+      <a href="${up}plus/">Traccemoto Plus</a>
       <a href="${up}sostieni.html">Sostieni</a>
       <a href="${up}info.html">Chi siamo e contatti</a>
       <a href="${up}privacy.html">Privacy e cookie</a>

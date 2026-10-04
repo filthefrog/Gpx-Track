@@ -1,0 +1,46 @@
+<!--{"path": "plus/index.html", "order": 23, "ads": false, "js": ["plus"], "title": "Traccemoto Plus: in arrivo", "description": "Traccemoto resta gratuito. Plus aggiungerà roadbook pro, viaggi in più giorni, autonomia, meteo e giri sincronizzati, a un prezzo più basso delle principali app per moto."}-->
+<section class="hero">
+  <span class="kicker">In arrivo</span>
+  <h1>Traccemoto Plus</h1>
+  <p>Traccemoto resta gratuito: giro dall'elenco delle località, GPX turn by turn, link per Google Maps e Apple Mappe,
+    profilo altimetrico, roadbook e convertitore. Plus aggiungerà strumenti per chi viaggia spesso e per chi organizza,
+    a un prezzo più basso delle principali app per moto.</p>
+</section>
+
+<h2>Cosa ci sarà in Plus</h2>
+<ul>
+  <li><strong>Roadbook Pro</strong>: modifica delle caselle, note e pericoli (!, !!, !!!), waypoint, export OpenRally completo.</li>
+  <li><strong>Viaggi in più giorni</strong>, con le tappe per la notte e un GPX per ogni giorno.</li>
+  <li><strong>Autonomia e rifornimenti</strong>: i tratti senza distributori più lunghi del tuo serbatoio, e dove fare il pieno.</li>
+  <li><strong>Meteo all'ora di passaggio</strong> sui punti più alti del giro.</li>
+  <li><strong>Tre varianti a confronto</strong> e <strong>giro ad anello</strong> partendo da dove sei.</li>
+  <li><strong>Giri sincronizzati</strong> tra telefono e computer.</li>
+  <li><strong>Niente pubblicità.</strong></li>
+</ul>
+<p>Più avanti anche un piano per <strong>motoclub e organizzatori</strong> di raduni e rally amatoriali.</p>
+
+<h2>Avvisami quando apre</h2>
+<!--se-lista-->
+<form class="waitlist" id="waitlist" novalidate>
+  <label for="wl-email">La tua email</label>
+  <div class="waitlist-row">
+    <input type="email" id="wl-email" name="email" autocomplete="email" required maxlength="254" placeholder="nome@esempio.it">
+    <button class="btn" type="submit">Avvisami</button>
+  </div>
+  <!-- campo trappola per i robot: le persone non lo vedono -->
+  <input type="text" name="sito" tabindex="-1" autocomplete="off" class="trap" aria-hidden="true">
+  <label class="waitlist-consent"><input type="checkbox" id="wl-consent" required>
+    <span>Voglio ricevere un'email quando Traccemoto Plus apre. Ho letto l'<a href="{{up}}privacy.html#lista-attesa">informativa</a>.</span></label>
+  <p class="waitlist-status" id="wl-status" role="status" aria-live="polite"></p>
+</form>
+<p class="small-print">Solo l'email, nessun altro dato. Al massimo qualche messaggio sull'apertura di Plus; puoi
+  cancellarti quando vuoi.</p>
+<!--fine-lista-->
+<!--se-no-lista-->
+<p>La lista d'attesa apre a breve. Intanto puoi seguire il progetto e scriverci: {{contact}}.</p>
+<!--fine-no-lista-->
+<!--se-donazioni-->
+<div class="donate"><p>Vuoi aiutare Traccemoto a crescere? Una donazione è un regalo al progetto: non sblocca
+  funzioni, ma lo tiene vivo.</p>
+  <a class="btn" href="{{donate}}" target="_blank" rel="noopener">Offrimi un caffè</a></div>
+<!--fine-donazioni-->

@@ -1,5 +1,5 @@
 // Pagina «Convertitore GPX → roadbook»: legge il file nel browser e apre il roadbook (js/roadbook-view.js).
-import { mountRoadbookView } from './roadbook-view.js?v=202610041746';
+import { mountRoadbookView } from './roadbook-view.js?v=202610041754';
 
 const status = document.getElementById('convert-status');
 const say = (text, err = false) => {

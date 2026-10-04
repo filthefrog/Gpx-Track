@@ -14,7 +14,7 @@ await import('./pagine.mjs');
 const PUBLIC = [
   'index.html', 'sw.js', 'manifest.webmanifest', 'robots.txt', 'sitemap.xml', 'ads.txt', '_headers',
   'privacy.html', 'info.html', 'sostieni.html',
-  'css', 'js', 'fonts', 'icons', 'guide', 'convertitore-gpx-roadbook',
+  'css', 'js', 'fonts', 'icons', 'guide', 'convertitore-gpx-roadbook', 'plus',
 ];
 
 rmSync(out, { recursive: true, force: true });
