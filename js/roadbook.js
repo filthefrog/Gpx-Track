@@ -2,7 +2,7 @@
 // in stile FIA/FIM: distanza totale e parziale, tulipano, CAP e note.
 // Funzioni pure (nessun DOM, nessuna rete): testate in tests/roadbook.test.mjs.
 // Requisiti e fonti: docs/roadbook.md.
-import { cumulativeDistances, curvature, escapeXml, simplifyRDP } from './core.js?v=202610041736';
+import { cumulativeDistances, curvature, escapeXml, simplifyRDP } from './core.js?v=202610041740';
 
 export const RB = Object.freeze({
   HEADING_M: 35, // metri di traccia per misurare la direzione di entrata e di uscita
@@ -415,7 +415,7 @@ export function buildOpenRallyGpx({ name, boxes, totalKm, shape, time = new Date
   const ns = RB.OPENRALLY_NS;
   let x =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    `<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="Tracce Moto"\n` +
+    `<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="Traccemoto"\n` +
     '  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n' +
     `  xmlns:openrally="${ns}"\n` +
     `  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd ${ns} http://www.openrally.org/xmlschemas/GpxExtensions/v1.0.3.xsd">\n` +

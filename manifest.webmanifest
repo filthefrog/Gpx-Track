@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Tracce Moto",
-  "short_name": "Tracce Moto",
+  "name": "Traccemoto",
+  "short_name": "Traccemoto",
   "description": "Da un elenco di località a un GPX turn by turn strada per strada, per giri in moto.",
   "lang": "it",
   "dir": "ltr",

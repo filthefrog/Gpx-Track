@@ -22,7 +22,7 @@ Analisi del 4 ottobre 2026 per la funzione «Roadbook da rally» (`js/roadbook.j
 
 ## Requisiti e come sono soddisfatti
 
-| Requisito | Fonte | Tracce Moto |
+| Requisito | Fonte | Traccemoto |
 | --- | --- | --- |
 | Una casella per ogni punto di decisione, numerata | FIA/FIM, FMI | Una casella per manovra (svolte, rotonde, «dritto» agli incroci, tappe); i cambi di nome della strada non fanno casella |
 | Distanza totale e parziale, al centesimo di km | FIA/FIM, FMI | Totale dalla partenza e parziale dalla casella prima, due decimali |

@@ -1,4 +1,4 @@
-// Tracce Moto — interfaccia: elenco di tappe, mappa, calcolo ed export.
+// Traccemoto — interfaccia: elenco di tappe, mappa, calcolo ed export.
 import {
   DEFAULT_OPTIONS,
   bestInsertionIndex,
@@ -28,13 +28,13 @@ import {
   profileAt,
   pointAtDistance,
   escapeXml,
-} from './core.js?v=202610041736';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041736';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041736';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041736';
-import { CONFIG } from './config.js?v=202610041736';
-import { buildRoadbook, buildOpenRallyGpx, turnByTurnFromGpx, tulipSvg, noteLines, rbKm } from './roadbook.js?v=202610041736';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041736';
+} from './core.js?v=202610041740';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041740';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041740';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041740';
+import { CONFIG } from './config.js?v=202610041740';
+import { buildRoadbook, buildOpenRallyGpx, turnByTurnFromGpx, tulipSvg, noteLines, rbKm } from './roadbook.js?v=202610041740';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041740';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1994,7 +1994,7 @@ if (CONFIG.toolAds && document.querySelector('.tool-ad ins.adsbygoogle')) {
     // annunci bloccati o non ancora approvati: lo strumento funziona lo stesso
   }
   const p = document.querySelector('.privacy p');
-  if (p) p.textContent = 'Tracce Moto non ha un server suo e non sa chi sei. In questa pagina compaiono annunci di Google, che possono usare cookie dopo il tuo consenso. Giri salvati, giro in corso e preferenze restano solo in questo dispositivo.';
+  if (p) p.textContent = 'Traccemoto non ha un server suo e non sa chi sei. In questa pagina compaiono annunci di Google, che possono usare cookie dopo il tuo consenso. Giri salvati, giro in corso e preferenze restano solo in questo dispositivo.';
 }
 
 // donazioni: il riquadro compare solo se la pagina è configurata (js/config.js)
@@ -2393,7 +2393,7 @@ function registerServiceWorker() {
     .register('sw.js')
     .then((reg) => {
       const offer = (worker) =>
-        toast('Nuova versione di Tracce Moto disponibile.', false, {
+        toast('Nuova versione di Traccemoto disponibile.', false, {
           label: 'Aggiorna',
           run: () => {
             updateRequested = true;
@@ -2439,7 +2439,7 @@ function setupInstall() {
   });
   window.addEventListener('appinstalled', () => {
     $('#btn-install').hidden = true;
-    toast('Tracce Moto è installata.');
+    toast('Traccemoto è installata.');
   });
   // iPhone: Safari non ha un pulsante, si spiega una volta come fare
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

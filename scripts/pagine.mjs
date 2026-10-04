@@ -82,6 +82,16 @@ function render(page) {
   body = body.replace(/<!--annuncio-->/g, () => (withAds ? adUnit(slots.article) : ''));
   const side = withAds ? adUnit(slots.side, 'ad-side') : '';
   const canonical = `${CONFIG.siteUrl}/${page.path.replace(/index\.html$/, '')}`;
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type': page.path.startsWith('guide/') && !page.path.endsWith('index.html') ? 'Article' : 'WebPage',
+    headline: page.title,
+    name: page.title,
+    description: page.description,
+    inLanguage: 'it',
+    url: canonical,
+    publisher: { '@type': 'Organization', name: 'Traccemoto', url: `${CONFIG.siteUrl}/`, logo: `${CONFIG.siteUrl}/icons/icon-512.png` },
+  };
   const donate = CONFIG.donateUrl
     ? `<a class="nav-donate" href="${esc(CONFIG.donateUrl)}" target="_blank" rel="noopener">Offrimi un caffè</a>`
     : '';
@@ -90,7 +100,7 @@ function render(page) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>${esc(page.title)} · Tracce Moto</title>
+  <title>${esc(page.title)} · Traccemoto</title>
   <meta name="description" content="${esc(page.description)}">
   <link rel="canonical" href="${esc(canonical)}">
   <meta property="og:type" content="article">
@@ -98,6 +108,10 @@ function render(page) {
   <meta property="og:description" content="${esc(page.description)}">
   <meta property="og:url" content="${esc(canonical)}">
   <meta property="og:image" content="${esc(CONFIG.siteUrl)}/icons/icon-512.png">
+  <meta property="og:site_name" content="Traccemoto">
+  <meta property="og:locale" content="it_IT">
+  <meta name="twitter:card" content="summary">
+  <script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>
   <meta name="theme-color" content="#ffffff">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -109,7 +123,7 @@ function render(page) {
   <header class="site-top">
     <a class="site-brand" href="${up}./">
       <img src="${up}icons/icon.svg" alt="" width="28" height="28">
-      <span>Tracce Moto</span>
+      <span>Traccemoto</span>
     </a>
     <nav class="site-nav" aria-label="Sito">
       <a href="${up}guide/">Guide</a>
@@ -130,7 +144,7 @@ ${body.trim()}
       <a href="${up}info.html">Chi siamo e contatti</a>
       <a href="${up}privacy.html">Privacy e cookie</a>
     </nav>
-    <p>Tracce Moto è gratuito. Mappe e dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> e contributori.
+    <p>Traccemoto è gratuito. Mappe e dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> e contributori.
       Controlla sempre percorsi, aperture dei passi e divieti prima di partire.</p>
   </footer>
 </body>
@@ -160,6 +174,34 @@ for (const page of pages) write(page.path, render(page));
         `$1<aside class="card ad tool-ad" aria-label="Pubblicità"><span class="ad-label">Pubblicità</span><ins class="adsbygoogle" style="display:block" data-ad-client="${ads}" data-ad-slot="${esc(slots.tool)}" data-ad-format="auto" data-full-width-responsive="true"></ins></aside>$2`,
       );
   }
+  // SEO dello strumento: indirizzo canonico, anteprima per i social, dati strutturati (dipendono da siteUrl)
+  const app = {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'Traccemoto',
+    url: `${CONFIG.siteUrl}/`,
+    description: 'Pianificatore gratuito di giri in moto: da un elenco di località a GPX turn by turn, link per Google Maps e Apple Mappe e roadbook da rally.',
+    applicationCategory: 'TravelApplication',
+    operatingSystem: 'Any',
+    inLanguage: 'it',
+    isAccessibleForFree: true,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+  };
+  html = html.replace(
+    /<!--seo-->[\s\S]*?<!--\/seo-->/,
+    `<!--seo-->
+  <link rel="canonical" href="${esc(CONFIG.siteUrl)}/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Traccemoto">
+  <meta property="og:locale" content="it_IT">
+  <meta property="og:title" content="Traccemoto: pianificatore di giri in moto gratis">
+  <meta property="og:description" content="Dalle località al giro strada per strada: GPX per OsmAnd e Whip Live, link per Google Maps e Apple Mappe, roadbook da rally.">
+  <meta property="og:url" content="${esc(CONFIG.siteUrl)}/">
+  <meta property="og:image" content="${esc(CONFIG.siteUrl)}/icons/icon-512.png">
+  <meta name="twitter:card" content="summary">
+  <script type="application/ld+json">${JSON.stringify(app)}</script>
+  <!--/seo-->`,
+  );
   write('index.html', html);
 }
 

@@ -1,4 +1,4 @@
-# Tracce Moto
+# Traccemoto
 
 Web app statica per progettare giri in moto ed esportare file GPX da seguire svolta per svolta
 con **BMW Motorrad Connected** o con un navigatore montato sulla predisposizione GPS
@@ -101,14 +101,14 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
   sulla traccia; su computer, passando col mouse sulla traccia, il cursore si muove anche sul profilo.
 - **Mappa «Notte (scura)»**: predefinita con il tema scuro.
 - **Apri in Google Maps o Apple Mappe**: vedi la sezione qui sotto.
-- **Roadbook da rally**: dal giro calcolato o da un GPX (turn by turn di Tracce Moto o OsmAnd, oppure una semplice
+- **Roadbook da rally**: dal giro calcolato o da un GPX (turn by turn di Traccemoto o OsmAnd, oppure una semplice
   traccia) a un roadbook in stile FIA/FIM: caselle con distanza totale e parziale al centesimo, tulipano, CAP e note.
   Stampa su strisce da 148,5 mm (rotolo da porta-roadbook) o su A4, oppure GPX **OpenRally** v1.0.3 (validato con
   lo schema ufficiale) per app e dispositivi da roadbook. Requisiti e limiti: [`docs/roadbook.md`](docs/roadbook.md).
 
 ## Sito, annunci e donazioni
 
-Tracce Moto è un pianificatore gratuito. Si sostiene con gli annunci AdSense e le donazioni:
+Traccemoto è un pianificatore gratuito. Si sostiene con gli annunci AdSense e le donazioni:
 
 - **Lo strumento** (`index.html`) non ha annunci né cookie: è la regola del progetto, e le norme di AdSense non
   ammettono annunci su schermate senza contenuti dell'editore.
@@ -201,7 +201,7 @@ e riaprila.
 
 ### App installabile (PWA)
 
-Tracce Moto è una Progressive Web App:
+Traccemoto è una Progressive Web App:
 
 - **Installazione**: su iPhone Safari › Condividi › «Aggiungi alla schermata Home» (l'app lo ricorda con un avviso
   la prima volta); su Android e sui browser desktop compare il pulsante **Installa**.
@@ -221,7 +221,7 @@ per i giri importanti tieni anche il link condiviso.
 
 I menu dell'app cambiano tra le versioni: i passi qui sotto valgono in generale.
 
-1. In Tracce Moto calcola il giro e tocca **Invia a…** sotto «Traccia» o «Rotta».
+1. In Traccemoto calcola il giro e tocca **Invia a…** sotto «Traccia» o «Rotta».
 2. Nel foglio di condivisione scegli **Connected** (se non c'è, scorri fino a «Altro»).
    In alternativa salva il file in **File** e da lì condividilo con Connected, oppure mandalo per e-mail e aprilo con Connected.
 3. Il giro compare tra i percorsi salvati dell'app (sezione Percorsi / Le mie rotte). Aprilo, controlla che la linea

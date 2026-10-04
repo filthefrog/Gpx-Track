@@ -1,7 +1,7 @@
 # Cosa manca alle app di navigazione, e cosa possiamo fare gratis
 
 Ricerca del 4 ottobre 2026. Obiettivo: trovare i vuoti delle app più usate (Google Maps, Apple Mappe, Waze per
-tutti; Calimoto, Kurviger, REVER, Scenic, Whip Live, OsmAnd per le moto) che Tracce Moto può riempire **in fase di
+tutti; Calimoto, Kurviger, REVER, Scenic, Whip Live, OsmAnd per le moto) che Traccemoto può riempire **in fase di
 pianificazione**, gratis, senza server nostri e senza chiavi a pagamento.
 
 ## Cosa manca oggi

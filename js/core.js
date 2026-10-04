@@ -1,4 +1,4 @@
-// Funzioni pure di Tracce Moto: nessun accesso a DOM, rete o storage.
+// Funzioni pure di Traccemoto: nessun accesso a DOM, rete o storage.
 // Usate dal browser (js/app.js) e dai test Node (tests/core.test.mjs).
 
 const EARTH_R = 6371008.8; // raggio medio terrestre in metri
@@ -828,7 +828,7 @@ function gpxHeader(name, time, desc, garmin = false, osmand = false) {
   return (
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     // OsmAnd legge le indicazioni di un <rte> solo se il file dichiara di venire dal suo router
-    `<gpx version="1.1" creator="${osmand ? 'OsmAndRouter' : 'Tracce Moto'}" xmlns="http://www.topografix.com/GPX/1/1" ` +
+    `<gpx version="1.1" creator="${osmand ? 'OsmAndRouter' : 'Traccemoto'}" xmlns="http://www.topografix.com/GPX/1/1" ` +
     (garmin ? `xmlns:trp="${TRP_NS}" ` : '') +
     (osmand ? `xmlns:osmand="${OSMAND_NS}" ` : '') +
     'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +

@@ -1,7 +1,7 @@
 # Concorrenti: cosa fanno pagare, cosa possiamo dare gratis
 
 Ricerca del 4 ottobre 2026. Completa `docs/proposte.md` (vuoti delle app di navigazione, «controlli prima di
-partire»). Qui il punto di vista è diverso: **quali funzioni a pagamento dei concorrenti Tracce Moto può offrire
+partire»). Qui il punto di vista è diverso: **quali funzioni a pagamento dei concorrenti Traccemoto può offrire
 gratis**, restando un pianificatore web senza server propri e senza costi fissi.
 
 ## Cosa costa altrove
@@ -20,7 +20,7 @@ Fonti: [Whip Live su App Store](https://apps.apple.com/it/app/whip-live-moto-bic
 [Kurviger funzioni](https://kurviger.com/en/features),
 [SlashGear](https://www.slashgear.com/1755865/motorcycle-apps-find-routes-track-rides/).
 
-## Cosa Tracce Moto dà già gratis
+## Cosa Traccemoto dà già gratis
 
 - Tappe e distanza senza limiti; i giri lunghi si calcolano a pezzi (a pagamento in Whip Plus).
 - **Profilo altimetrico** con cursore sulla traccia (a pagamento in OsmAnd Pro).

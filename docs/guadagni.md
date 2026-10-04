@@ -1,4 +1,4 @@
-# Guadagnare con Tracce Moto: AdSense e donazioni, passo per passo
+# Guadagnare con Traccemoto: AdSense e donazioni, passo per passo
 
 Questa guida porta dal sito di oggi (gratuito, senza annunci) a un sito che mostra annunci AdSense nelle guide e
 accetta donazioni. Le voci segnate **DA VERIFICARE** non le ho potute controllare sulla documentazione ufficiale
@@ -32,7 +32,7 @@ progetto. Due strade:
 
 | | Costo | Come |
 | --- | --- | --- |
-| **A. Dominio GitHub gratuito** | 0 € | Crei un secondo repository chiamato `filthefrog.github.io` con dentro `ads.txt` (e una pagina iniziale che porta a Tracce Moto). Il sito si registra in AdSense come `filthefrog.github.io`. Che AdSense approvi un sito su `github.io` è **DA VERIFICARE**: in rete ci sono esperienze sia positive sia negative. |
+| **A. Dominio GitHub gratuito** | 0 € | Crei un secondo repository chiamato `filthefrog.github.io` con dentro `ads.txt` (e una pagina iniziale che porta a Traccemoto). Il sito si registra in AdSense come `filthefrog.github.io`. Che AdSense approvi un sito su `github.io` è **DA VERIFICARE**: in rete ci sono esperienze sia positive sia negative. |
 | **B. Dominio tuo** (es. `traccemoto.it`) | circa 10-15 € l'anno (**costo ricorrente**) | Lo compri da un registrar, lo colleghi a GitHub Pages (file `CNAME`), `ads.txt` va nella radice del repository. Più credibile per AdSense e per le persone, e il nome resta tuo se un giorno cambi hosting. |
 
 Consiglio: **parti con A** (gratis). Se AdSense rifiuta il sito per il dominio, passa a B. Quando sei deciso,
