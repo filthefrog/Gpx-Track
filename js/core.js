@@ -359,6 +359,8 @@ export function parseTrip(trip) {
         type: m.type,
         instruction: m.instruction,
         streetNames: m.street_names || m.begin_street_names || [],
+        exitCount: m.roundabout_exit_count || 0,
+        toward: signToward(m.sign),
         length: m.length, // km
         time: m.time, // s
         km, // km progressivi all'inizio della manovra
@@ -382,6 +384,80 @@ export function parseTrip(trip) {
     maneuvers,
     summary: { length: trip.summary.length, time: trip.summary.time },
   };
+}
+
+/** Indicazioni del cartello stradale ("verso Bormio"), se Valhalla le fornisce. */
+function signToward(sign) {
+  if (!sign) return '';
+  const list = [...(sign.exit_toward_elements || []), ...(sign.exit_branch_elements || [])].map((e) => e.text);
+  return [...new Set(list)].slice(0, 2).join(' / ');
+}
+
+const MANEUVER_VERB = {
+  1: 'Parti',
+  2: 'Parti',
+  3: 'Parti',
+  4: 'Arrivo',
+  5: 'Arrivo',
+  6: 'Arrivo',
+  7: 'Prosegui',
+  8: 'Prosegui',
+  9: 'Leggermente a destra',
+  10: 'Destra',
+  11: 'Tutto a destra',
+  12: 'Inversione a U',
+  13: 'Inversione a U',
+  14: 'Tutto a sinistra',
+  15: 'Sinistra',
+  16: 'Leggermente a sinistra',
+  17: 'Rampa dritto',
+  18: 'Rampa a destra',
+  19: 'Rampa a sinistra',
+  20: 'Uscita a destra',
+  21: 'Uscita a sinistra',
+  22: 'Dritto',
+  23: 'Tieni la destra',
+  24: 'Tieni la sinistra',
+  25: 'Immettiti',
+  26: 'Rotonda',
+  27: 'Esci dalla rotonda',
+  28: 'Traghetto',
+  29: 'Sbarca',
+  37: 'Immettiti a destra',
+  38: 'Immettiti a sinistra',
+};
+
+/**
+ * Etichetta breve e leggibile di una manovra: "Destra su SP1",
+ * "Rotonda, 2ª uscita su SS38", "Tieni la sinistra verso Bormio".
+ */
+export function maneuverLabel(m) {
+  let verb = MANEUVER_VERB[m.type] || 'Prosegui';
+  if (m.type === 26 && m.exitCount) verb = `Rotonda, ${m.exitCount}ª uscita`;
+  const street = m.streetNames && m.streetNames[0];
+  let label = verb;
+  if (street) label += ` su ${street}`;
+  else if (m.toward) label += ` verso ${m.toward}`;
+  return label.length > 40 ? `${label.slice(0, 39)}…` : label;
+}
+
+/** Manovre da segnalare come svolte nella traccia (incluso l'ingresso in rotonda con l'uscita). */
+export function turnManeuvers(parsed) {
+  const skip = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 22, 27]);
+  return parsed.maneuvers.filter((m) => !skip.has(m.type) && !(m.type >= 30 && m.type <= 36) && m.type < 39);
+}
+
+function kmLabel(km) {
+  return `${km.toFixed(1).replace('.', ',')} km`;
+}
+
+/** Testo completo della manovra con i dati utili per chi guida. */
+export function maneuverDetail(m) {
+  const parts = [m.instruction || maneuverLabel(m)];
+  if (m.toward && !String(m.instruction).includes(m.toward)) parts.push(`Direzione ${m.toward}.`);
+  parts.push(`A ${kmLabel(m.km)} dalla partenza.`);
+  if (m.length > 0) parts.push(`Poi prosegui per ${kmLabel(m.length)} (${formatDuration(m.time)}).`);
+  return parts.join(' ');
 }
 
 /**
@@ -425,22 +501,23 @@ export function routeShapingPoints(parsed) {
     else if (segLen >= ROUTE_POINT.MIN_SHORT_SEGMENT) dist = segLen / 2;
     else return; // strada troppo corta: ci pensa il punto della manovra successiva
     const [lat, lon] = pointAlong(shape, m.begin, dist, cum);
-    const street = m.streetNames && m.streetNames[0];
+    // all'uscita di una rotonda serve sapere quale uscita prendere: è nella manovra d'ingresso
+    const prev = maneuvers[idx - 1];
+    const label =
+      m.type === MANEUVER.ROUNDABOUT_EXIT && prev && prev.type === MANEUVER.ROUNDABOUT_ENTER
+        ? maneuverLabel({ ...prev, streetNames: m.streetNames.length ? m.streetNames : prev.streetNames })
+        : maneuverLabel(m);
     out.push({
       lat,
       lon,
-      name: street || shortInstruction(m.instruction),
-      desc: m.instruction || '',
+      name: `${kmLabel(m.km)} ${label}`,
+      desc: maneuverDetail(m),
+      cmt: m.instruction || '',
       maneuverIndex: idx,
       pos: cum[m.begin] + dist, // metri dall'inizio del percorso
     });
   });
   return out;
-}
-
-function shortInstruction(text) {
-  const t = String(text || 'Punto').replace(/\.$/, '');
-  return t.length > 30 ? `${t.slice(0, 29)}…` : t;
 }
 
 /**
@@ -535,6 +612,11 @@ function gpxHeader(name, time, desc, garmin = false) {
   );
 }
 
+function tripDescription(parsed, stops) {
+  const names = stops.map((s) => String(s.name).split(',')[0]).join(' → ');
+  return `${names ? `${names} · ` : ''}${formatKm(parsed.summary.length)} · ${formatDuration(parsed.summary.time)}`;
+}
+
 function stopTypeLabel(stops, i, loop) {
   if (i === 0) return 'Partenza';
   if (i === stops.length - 1 && !loop) return 'Arrivo';
@@ -545,10 +627,10 @@ function stopTypeLabel(stops, i, loop) {
  * GPX "Traccia": un <wpt> per tappa e un <trk> con la geometria semplificata.
  * `parsed` è il risultato di parseTrip.
  */
-export function buildTrackGpx({ name, stops, loop = false, parsed, tolerance = 4, time = new Date() }) {
+export function buildTrackGpx({ name, stops, loop = false, parsed, tolerance = 4, time = new Date(), turns = true }) {
   const iso = toIsoSeconds(time);
   const simplified = simplifyRDP(parsed.shape, tolerance, keyIndices(parsed));
-  const desc = `${formatKm(parsed.summary.length)} · ${formatDuration(parsed.summary.time)}`;
+  const desc = tripDescription(parsed, stops);
   let x = gpxHeader(name, iso, desc);
   stops.forEach((s, i) => {
     x +=
@@ -558,7 +640,22 @@ export function buildTrackGpx({ name, stops, loop = false, parsed, tolerance = 4
       `    <type>${stopTypeLabel(stops, i, loop)}</type>\n` +
       '  </wpt>\n';
   });
-  x += `  <trk>\n    <name>${escapeXml(name)}</name>\n    <trkseg>\n`;
+  // una svolta = un wpt sull'incrocio, con nome breve e istruzione completa:
+  // le app e i navigatori che mostrano i waypoint della traccia li annunciano in avvicinamento
+  if (turns) {
+    for (const m of turnManeuvers(parsed)) {
+      const [la, lo] = parsed.shape[m.begin];
+      x +=
+        `  <wpt lat="${coord(la)}" lon="${coord(lo)}">\n` +
+        `    <name>${escapeXml(`${kmLabel(m.km)} ${maneuverLabel(m)}`)}</name>\n` +
+        `    <cmt>${escapeXml(m.instruction || '')}</cmt>\n` +
+        `    <desc>${escapeXml(maneuverDetail(m))}</desc>\n` +
+        '    <sym>Navaid, White</sym>\n' +
+        '    <type>Svolta</type>\n' +
+        '  </wpt>\n';
+    }
+  }
+  x += `  <trk>\n    <name>${escapeXml(name)}</name>\n    <desc>${escapeXml(desc)}</desc>\n    <trkseg>\n`;
   for (const [la, lo] of simplified) x += `      <trkpt lat="${coord(la)}" lon="${coord(lo)}"/>\n`;
   x += '    </trkseg>\n  </trk>\n</gpx>\n';
   return x;
@@ -574,12 +671,10 @@ export function buildTrackGpx({ name, stops, loop = false, parsed, tolerance = 4
 export function buildRouteGpx({ name, stops, loop = false, parsed, time = new Date() }) {
   const iso = toIsoSeconds(time);
   const points = buildRoutePoints(parsed, stops, loop);
-  const desc = `${formatKm(parsed.summary.length)} · ${formatDuration(parsed.summary.time)}`;
+  const desc = tripDescription(parsed, stops);
   let x = gpxHeader(name, iso, desc, true);
   x += `  <rte>\n    <name>${escapeXml(name)}</name>\n`;
-  let n = 0;
   for (const p of points) {
-    n++;
     if (p.kind === 'stop') {
       const idx = p.number - 1;
       const isReturn = loop && p === points[points.length - 1];
@@ -594,7 +689,8 @@ export function buildRouteGpx({ name, stops, loop = false, parsed, time = new Da
     } else {
       x +=
         `    <rtept lat="${coord(p.lat)}" lon="${coord(p.lon)}">\n` +
-        `      <name>${escapeXml(`${String(n).padStart(3, '0')} ${p.name}`)}</name>\n` +
+        `      <name>${escapeXml(p.name)}</name>\n` +
+        `      <cmt>${escapeXml(p.cmt)}</cmt>\n` +
         `      <desc>${escapeXml(p.desc)}</desc>\n` +
         '      <sym>Waypoint</sym>\n' +
         '      <type>Punto di passaggio</type>\n' +
@@ -629,7 +725,7 @@ export function formatDuration(seconds) {
 
 /** Righe del roadbook: [{ km, text, type }]. */
 export function roadbookRows(parsed) {
-  return parsed.maneuvers.map((m) => ({ km: m.km, text: m.instruction, type: m.type }));
+  return parsed.maneuvers.map((m) => ({ km: m.km, text: m.instruction, type: m.type, length: m.length }));
 }
 
 /** Testo del roadbook da copiare. */
@@ -638,7 +734,8 @@ export function roadbookText(name, parsed, stops = []) {
   if (stops.length) lines.push(`Tappe: ${stops.map((s) => s.name).join(' → ')}`);
   lines.push('');
   for (const r of roadbookRows(parsed)) {
-    lines.push(`${r.km.toFixed(1).replace('.', ',').padStart(7)} km  ${r.text}`);
+    const next = r.length > 0 ? `  (poi ${kmLabel(r.length)})` : '';
+    lines.push(`${r.km.toFixed(1).replace('.', ',').padStart(7)} km  ${r.text}${next}`);
   }
   return lines.join('\n');
 }

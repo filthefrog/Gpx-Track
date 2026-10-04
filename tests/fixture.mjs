@@ -32,6 +32,8 @@ function buildLeg(start, steps) {
       type: s.type,
       instruction: s.instruction,
       street_names: s.street ? [s.street] : undefined,
+      roundabout_exit_count: s.exit,
+      sign: s.toward ? { exit_toward_elements: [{ text: s.toward }] } : undefined,
       length: s.length / 1000,
       time: s.length / 15,
       begin_shape_index: begin,
@@ -55,7 +57,7 @@ export const LEG1_STEPS = [
   { type: 1, instruction: 'Guida verso nord su Via Uno.', street: 'Via Uno', bearing: 0, length: 1000 },
   { type: 7, instruction: 'Via Uno diventa Via Due.', street: 'Via Due', bearing: 0, length: 300 },
   { type: 10, instruction: 'Svolta a destra su SP1.', street: 'SP1', bearing: 90, length: 800 },
-  { type: 26, instruction: 'Entra nella rotonda.', bearing: 120, length: 40, step: 10 },
+  { type: 26, instruction: 'Entra nella rotonda e prendi la 2ª uscita su SP2.', street: 'SP2', exit: 2, bearing: 120, length: 40, step: 10 },
   { type: 27, instruction: 'Prendi la 2ª uscita su SP2.', street: 'SP2', bearing: 90, length: 600 },
   { type: 15, instruction: 'Svolta a sinistra su Vicolo Corto.', street: 'Vicolo Corto', bearing: 0, length: 60 },
   { type: 10, instruction: 'Svolta a destra su Via Breve.', street: 'Via Breve', bearing: 90, length: 100 },
@@ -67,6 +69,7 @@ export const LEG1_STEPS = [
 export const LEG2_STEPS = [
   { type: 1, instruction: 'Guida verso nord su SS3.', street: 'SS3', bearing: 0, length: 400 },
   { type: 14, instruction: 'Svolta tutto a sinistra su Strada del Passo.', street: 'Strada del Passo', bearing: 270, length: 900 },
+  { type: 24, instruction: 'Tieni la sinistra verso Bormio.', toward: 'Bormio', bearing: 270, length: 400 },
   { type: 22, instruction: 'Mantieni dritto su Strada del Passo.', street: 'Strada del Passo', bearing: 270, length: 300 },
   { type: 4, instruction: 'Sei arrivato a destinazione.', bearing: 0, length: 0 },
 ];

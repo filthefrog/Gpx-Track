@@ -238,7 +238,7 @@ test('routeShapingPoints: un punto 120-150 m dopo ogni manovra significativa, su
   const pts = routeShapingPoints(p);
   const types = pts.map((x) => p.maneuvers[x.maneuverIndex].type);
   // esclusi: partenza, "diventa", rotonda (ingresso), "continua", "mantieni dritto", arrivo, e la strada di 60 m
-  assert.deepEqual(types, [10, 27, 10, 15, 14]);
+  assert.deepEqual(types, [10, 27, 10, 15, 14, 24]);
   for (const x of pts) {
     const m = p.maneuvers[x.maneuverIndex];
     const road = p.shape.slice(m.begin, m.end + 1);
@@ -254,9 +254,11 @@ test('routeShapingPoints: un punto 120-150 m dopo ogni manovra significativa, su
     }
     assert.ok(toNext >= 30, `${m.instruction}: troppo vicino all'incrocio successivo`);
   }
-  // il nome è quello della nuova strada
-  assert.equal(pts[1].name, 'SP2');
-  assert.match(pts[1].desc, /uscita/);
+  // nome leggibile: km progressivi, direzione e nuova strada
+  assert.equal(pts[0].name, '1,3 km Destra su SP1');
+  assert.equal(pts[1].name, '2,1 km Rotonda, 2ª uscita su SP2');
+  assert.equal(pts[5].name.endsWith('Tieni la sinistra verso Bormio'), true);
+  assert.match(pts[0].desc, /^Svolta a destra su SP1\. A 1,3 km dalla partenza\. Poi prosegui per 0,8 km/);
 });
 
 test('buildRoutePoints: tappe in ordine e nessun punto a meno di 50 m dal precedente', () => {
@@ -277,7 +279,7 @@ test('buildRoutePoints: un punto troppo vicino a una tappa viene scartato', () =
   const p = parseTrip(trip);
   // sposto la tappa intermedia a 20 m dal punto dopo "Svolta a sinistra su SS3"
   const shaping = routeShapingPoints(p);
-  const ss3 = shaping.find((x) => x.name === 'SS3' && p.maneuvers[x.maneuverIndex].type === 15);
+  const ss3 = shaping.find((x) => x.name.endsWith('Sinistra su SS3'));
   const moved = stops.map((s) => ({ ...s }));
   moved[1] = { ...moved[1], lat: ss3.lat + 20 / 111320, lon: ss3.lon };
   const pts = buildRoutePoints(p, moved, false);
@@ -302,9 +304,27 @@ test('buildTrackGpx: GPX 1.1 valido con wpt per ogni tappa e trk semplificato', 
   assert.equal(child(child(gpx, 'metadata'), 'name').text, 'Giro <prova> & "test"');
   assert.equal(child(child(gpx, 'metadata'), 'time').text, '2026-10-04T08:00:00Z');
   const wpts = findAll(gpx, 'wpt');
-  assert.equal(wpts.length, 3);
   assert.equal(child(wpts[0], 'name').text, 'Partenza & co <test>');
-  assert.deepEqual(wpts.map((w) => child(w, 'type').text), ['Partenza', 'Sosta', 'Arrivo']);
+  assert.deepEqual(wpts.slice(0, 3).map((w) => child(w, 'type').text), ['Partenza', 'Sosta', 'Arrivo']);
+  // una svolta per ogni manovra utile, sull'incrocio, con istruzione leggibile
+  const turns = wpts.slice(3);
+  assert.deepEqual(turns.map((w) => child(w, 'name').text), [
+    '1,3 km Destra su SP1',
+    '2,1 km Rotonda, 2ª uscita su SP2',
+    '2,7 km Sinistra su Vicolo Corto',
+    '2,8 km Destra su Via Breve',
+    '3,1 km Sinistra su SS3',
+    '4,0 km Tutto a sinistra su Strada del Passo',
+    '4,9 km Tieni la sinistra verso Bormio',
+  ]);
+  assert.ok(turns.every((w) => child(w, 'type').text === 'Svolta'));
+  assert.match(child(turns[0], 'desc').text, /Poi prosegui per 0,8 km/);
+  assert.equal(child(turns[0], 'cmt').text, 'Svolta a destra su SP1.');
+  const turn0 = [Number(turns[0].attrs.lat), Number(turns[0].attrs.lon)];
+  assert.ok(haversine(turn0, p.shape[p.maneuvers[2].begin]) < 0.2, 'la svolta è sull\'incrocio');
+  assert.match(child(child(gpx, 'metadata'), 'desc').text, /Partenza & co <test> → Tappa intermedia → Arrivo · /);
+  const noTurns = parseXml(buildTrackGpx({ name: 'x', stops, parsed: p, turns: false }));
+  assert.equal(findAll(noTurns, 'wpt').length, 3);
   const trkpts = findAll(gpx, 'trkpt').map((t) => [Number(t.attrs.lat), Number(t.attrs.lon)]);
   assert.ok(trkpts.length < p.shape.length, 'la geometria deve essere semplificata');
   // le svolte restano esatte e nessun punto originale si allontana più di 4 m
@@ -345,6 +365,7 @@ test('buildRouteGpx: GPX 1.1 valido con rte, tappe e punti di passaggio', () => 
     // elementi del wpt nell'ordine dello schema: name, cmt?, desc?, sym, type
     const order = r.children.map((c) => c.name);
     const schema = ['name', 'cmt', 'desc', 'sym', 'type', 'extensions'];
+    if (child(r, 'type').text === 'Punto di passaggio') assert.match(child(r, 'name').text, /^\d+,\d km /);
     assert.deepEqual(order, [...order].sort((a, b) => schema.indexOf(a) - schema.indexOf(b)));
   }
 });
