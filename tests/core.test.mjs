@@ -172,16 +172,22 @@ test('buildValhallaRequest: costing moto, preferenze e tipi di tappa', () => {
     { lat: 5, lon: 6, type: 'break' },
     { lat: 7, lon: 8, type: 'through' },
   ];
-  const r = buildValhallaRequest(stops, false, { highways: 0, avoidTolls: true, avoidFerries: true, avoidUnpaved: true, shortest: true });
+  const r = buildValhallaRequest(stops, false, { highways: 0.5, avoidTolls: true, avoidFerries: true, avoidUnpaved: true, style: 'scenic' }, 'motorcycle', { alternates: 2 });
   assert.equal(r.costing, 'motorcycle');
   assert.deepEqual(r.locations.map((l) => l.type), ['break', 'through', 'break', 'break']);
+  // panoramica: autostrade sempre evitate, sterrato secondo la scelta, alternative richieste
   assert.deepEqual(r.costing_options.motorcycle, {
     use_highways: 0,
     use_tolls: 0,
     use_ferry: 0,
     use_trails: 0,
-    shortest: true,
+    shortest: false,
   });
+  assert.equal(r.alternates, 2);
+  const direct = buildValhallaRequest(stops, false, { highways: 0.5, avoidUnpaved: false, style: 'direct' });
+  assert.equal(direct.costing_options.motorcycle.use_highways, 0.5);
+  assert.equal(direct.costing_options.motorcycle.use_trails, 0.5);
+  assert.equal(direct.alternates, undefined);
   assert.deepEqual(r.directions_options, { units: 'kilometers', language: 'it-IT' });
 });
 
@@ -469,7 +475,7 @@ test('encodeState/decodeState: andata e ritorno con accenti ed emoji', () => {
   const state = {
     name: 'Passi alpini – giù per il Gavia 🏍️',
     loop: true,
-    options: { highways: 0.5, avoidTolls: true, avoidFerries: false, avoidUnpaved: false, shortest: true },
+    options: { highways: 0.5, avoidTolls: true, avoidFerries: false, avoidUnpaved: false, style: 'scenic' },
     stops: [
       { lat: 43.522468, lon: 13.618123, name: 'Sirolo', type: 'break' },
       { lat: 46.528634, lon: 10.453052, name: 'Passo dello Stelvio', type: 'through', snap: true },
@@ -562,4 +568,35 @@ test('routeInsertIndex: un passaggio toccato sul percorso va nel tratto giusto',
   assert.equal(routeInsertIndex(p.shape, stops.slice(0, 2), idx[1] + 3), 2);
   const k = 40;
   assert.equal(nearestShapeIndex(p.shape, [p.shape[k][0] + 0.00001, p.shape[k][1]]), k);
+});
+
+test('curvature: rettilineo, tornanti e svolte agli incroci', async () => {
+  const { curvature, pickScenic } = await import('../js/core.js');
+  // rettilineo di 3 km
+  const flat = [[46, 10], ...straight([46, 10], 30, 3000, 25)];
+  assert.ok(curvature(flat).degPerKm < 1);
+  assert.equal(curvature(flat).hairpins, 0);
+  // salita a tornanti: 8 rampe da 300 m che girano di 180° ciascuna
+  const pass = [[46.4, 10.4]];
+  let dir = 0;
+  for (let r = 0; r < 8; r++) {
+    pass.push(...straight(pass[pass.length - 1], dir, 300, 25));
+    for (let k = 0; k < 6; k++) {
+      dir += 30;
+      pass.push(...straight(pass[pass.length - 1], dir, 10, 10));
+    }
+  }
+  const c = curvature(pass);
+  assert.ok(c.hairpins >= 7, `tornanti: ${c.hairpins}`);
+  assert.ok(c.degPerKm > 300, `curve: ${c.degPerKm.toFixed(0)}°/km`);
+  // percorso a L: una sola svolta a un incrocio non è "curva"
+  const l = [[45, 9], ...straight([45, 9], 0, 1000, 25)];
+  const turnAt = l.length - 1;
+  l.push(...straight(l[l.length - 1], 90, 1000, 25));
+  assert.ok(curvature(l).degPerKm > 30, 'senza incroci la svolta conta');
+  assert.ok(curvature(l, [turnAt]).degPerKm < 1, 'la svolta all\'incrocio non conta');
+  // scelta: la più curva entro +40% di tempo
+  assert.equal(pickScenic([{ time: 100, degPerKm: 50 }, { time: 130, degPerKm: 200 }, { time: 200, degPerKm: 900 }]), 1);
+  assert.equal(pickScenic([{ time: 100, degPerKm: 80 }, { time: 110, degPerKm: 40 }]), 0);
+  assert.equal(pickScenic([]), -1);
 });

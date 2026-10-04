@@ -145,7 +145,7 @@ async function main() {
   stops.forEach((s, i) => console.log(`  ${i + 1}. ${s.name} (${s.lat.toFixed(5)}, ${s.lon.toFixed(5)})`));
 
   console.log('2. Percorso (Valhalla, autostrade: Evita)');
-  const options = { highways: 0, avoidTolls: false, avoidFerries: false, avoidUnpaved: true, shortest: false };
+  const options = { highways: 0, avoidTolls: false, avoidFerries: false, avoidUnpaved: true, style: 'direct' };
   let costing = 'motorcycle';
   let body;
   try {

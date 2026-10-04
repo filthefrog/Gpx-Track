@@ -286,17 +286,19 @@ export const DEFAULT_OPTIONS = Object.freeze({
   avoidTolls: false,
   avoidFerries: false,
   avoidUnpaved: true,
-  shortest: false,
+  // 'direct': il più veloce possibile; 'scenic': senza autostrade, il più ricco di curve tra le alternative
+  style: 'direct',
 });
 
 /** Corpo della richiesta /route per Valhalla. */
-export function buildValhallaRequest(stops, loop, options = DEFAULT_OPTIONS, costing = 'motorcycle', { snap = true } = {}) {
+export function buildValhallaRequest(stops, loop, options = DEFAULT_OPTIONS, costing = 'motorcycle', { snap = true, alternates = 0 } = {}) {
   const o = { ...DEFAULT_OPTIONS, ...options };
   const common = {
-    use_highways: o.highways,
+    // la panoramica evita sempre le autostrade
+    use_highways: o.style === 'scenic' ? 0 : o.highways,
     use_tolls: o.avoidTolls ? 0 : 0.5,
     use_ferry: o.avoidFerries ? 0 : 0.5,
-    shortest: !!o.shortest,
+    shortest: false,
   };
   const costingOptions =
     costing === 'motorcycle'
@@ -307,7 +309,102 @@ export function buildValhallaRequest(stops, loop, options = DEFAULT_OPTIONS, cos
     costing,
     costing_options: { [costing]: costingOptions },
     directions_options: { units: 'kilometers', language: 'it-IT' },
+    ...(alternates > 0 ? { alternates } : {}),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Curve: quanto è "guidata" una strada
+// ---------------------------------------------------------------------------
+
+export const CURVES = Object.freeze({
+  STEP: 20, // ricampionamento della geometria, in metri
+  NOISE: 2, // variazioni di direzione più piccole sono rumore del tracciato
+  JUNCTION: 40, // metri attorno agli incroci delle manovre: le svolte non sono curve
+  HAIRPIN_WINDOW: 160, // un tornante gira di almeno 150° in questo tratto
+  HAIRPIN_DEG: 150,
+});
+
+function headingDeg(a, b) {
+  const y = (b[1] - a[1]) * Math.cos(((a[0] + b[0]) / 2) * RAD);
+  const x = b[0] - a[0];
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
+function signedTurn(h1, h2) {
+  let d = h2 - h1;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+}
+
+/**
+ * Misura le curve di un percorso dalla sua geometria: gradi di curva per km e numero
+ * di tornanti. Le svolte agli incroci (`junctions`, indici della geometria delle manovre)
+ * non contano: interessa quanto curva la strada, non quante volte si gira.
+ * Restituisce { degPerKm, hairpins, km }.
+ */
+export function curvature(shape, junctions = []) {
+  if (shape.length < 3) return { degPerKm: 0, hairpins: 0, km: 0 };
+  const cum = cumulativeDistances(shape);
+  const total = cum[cum.length - 1];
+  if (total < CURVES.STEP * 3) return { degPerKm: 0, hairpins: 0, km: total / 1000 };
+  const junctionAt = junctions.map((i) => cum[Math.min(Math.max(i, 0), cum.length - 1)]).sort((a, b) => a - b);
+  // ricampionamento a passo costante
+  const pts = [];
+  const pos = [];
+  let seg = 1;
+  for (let d = 0; d <= total; d += CURVES.STEP) {
+    while (seg < shape.length - 1 && cum[seg] < d) seg++;
+    const a = shape[seg - 1];
+    const b = shape[seg];
+    const len = cum[seg] - cum[seg - 1];
+    const t = len > 0 ? (d - cum[seg - 1]) / len : 0;
+    pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    pos.push(d);
+  }
+  let j = 0;
+  const nearJunction = (d) => {
+    while (j < junctionAt.length && junctionAt[j] < d - CURVES.JUNCTION) j++;
+    return j < junctionAt.length && Math.abs(junctionAt[j] - d) <= CURVES.JUNCTION;
+  };
+  const turns = []; // variazione di direzione in ogni punto ricampionato (0 vicino agli incroci)
+  let totalDeg = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const t = signedTurn(headingDeg(pts[i - 1], pts[i]), headingDeg(pts[i], pts[i + 1]));
+    const counted = Math.abs(t) >= CURVES.NOISE && !nearJunction(pos[i]) ? t : 0;
+    turns.push(counted);
+    totalDeg += Math.abs(counted);
+  }
+  // tornanti: almeno 150° nello stesso verso in poco spazio
+  const win = Math.round(CURVES.HAIRPIN_WINDOW / CURVES.STEP);
+  let hairpins = 0;
+  for (let i = 0; i + win <= turns.length; ) {
+    let sum = 0;
+    for (let k = i; k < i + win; k++) sum += turns[k];
+    if (Math.abs(sum) >= CURVES.HAIRPIN_DEG) {
+      hairpins++;
+      i += win;
+    } else i++;
+  }
+  const km = total / 1000;
+  return { degPerKm: totalDeg / km, hairpins, km };
+}
+
+/**
+ * Sceglie tra percorsi alternativi il più ricco di curve tra quelli che non costano
+ * più di `maxRatio` volte il tempo del più veloce. `cands` = [{ time, degPerKm }].
+ * Restituisce l'indice scelto.
+ */
+export function pickScenic(cands, maxRatio = 1.4) {
+  if (!cands.length) return -1;
+  const fastest = Math.min(...cands.map((c) => c.time));
+  let best = -1;
+  cands.forEach((c, i) => {
+    if (c.time > fastest * maxRatio) return;
+    if (best < 0 || c.degPerKm > cands[best].degPerKm + 1e-9 || (Math.abs(c.degPerKm - cands[best].degPerKm) < 1e-9 && c.time < cands[best].time)) best = i;
+  });
+  return best;
 }
 
 /** URL GET con il JSON nel parametro ?json= (evita il preflight CORS). */
@@ -1005,7 +1102,7 @@ export function encodeState(state) {
     v: 1,
     n: state.name || '',
     l: state.loop ? 1 : 0,
-    o: [o.highways, o.avoidTolls ? 1 : 0, o.avoidFerries ? 1 : 0, o.avoidUnpaved ? 1 : 0, o.shortest ? 1 : 0],
+    o: [o.highways, o.avoidTolls ? 1 : 0, o.avoidFerries ? 1 : 0, o.avoidUnpaved ? 1 : 0, o.style === 'scenic' ? 1 : 0],
     s: (state.stops || []).map((s) => [round5(s.lat), round5(s.lon), s.name || '', s.type === 'through' ? 1 : 0, s.snap ? 1 : 0, encodePass(s.pass)]),
   };
   return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(compact)));
@@ -1041,7 +1138,7 @@ export function decodeState(str) {
   const raw = String(str || '').replace(/^#/, '').replace(/^g=/, '');
   const c = JSON.parse(new TextDecoder().decode(base64UrlToBytes(raw)));
   if (!c || c.v !== 1 || !Array.isArray(c.s)) throw new Error('Link non valido');
-  const [highways, tolls, ferries, unpaved, shortest] = c.o || [];
+  const [highways, tolls, ferries, unpaved, scenic] = c.o || [];
   const hw = [0, 0.5, 1].includes(highways) ? highways : DEFAULT_OPTIONS.highways;
   return {
     name: typeof c.n === 'string' ? c.n : '',
@@ -1051,7 +1148,7 @@ export function decodeState(str) {
       avoidTolls: !!tolls,
       avoidFerries: !!ferries,
       avoidUnpaved: unpaved === undefined ? DEFAULT_OPTIONS.avoidUnpaved : !!unpaved,
-      shortest: !!shortest,
+      style: scenic ? 'scenic' : 'direct',
     },
     stops: c.s
       .filter((s) => Array.isArray(s) && Number.isFinite(s[0]) && Number.isFinite(s[1]))
