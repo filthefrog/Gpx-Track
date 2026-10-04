@@ -529,6 +529,15 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
   animation: spin 0.8s linear infinite;
 }
 
+/* curve del percorso e scelta panoramica */
+.curves { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.curves:empty { display: none; }
+.curves .stat { display: inline-flex; align-items: baseline; gap: 5px; padding: 6px 10px; border-radius: 12px; background: var(--field); font-size: 13px; color: var(--muted); animation: pop 0.45s var(--spring) both; }
+.curves .stat b { font-size: 17px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.curves .stat.scenic { background: var(--grad-hot); color: rgb(255 255 255 / 85%); }
+.curves .stat.scenic b { color: #fff; font-size: 14px; letter-spacing: 0.02em; }
+.curves .note { flex-basis: 100%; font-size: 13px; color: var(--muted); margin: 2px 2px 0; }
+.segmented.off { opacity: 0.4; pointer-events: none; }
 .legs { list-style: none; padding: 0; margin: 0; }
 .legs li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 15px; font-weight: 600; animation: rise 0.4s var(--ease) both; }
 .legs li:nth-child(2) { animation-delay: 0.05s; }

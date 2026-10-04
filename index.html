@@ -22,10 +22,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041228">
+  <link rel="stylesheet" href="css/style.css?v=202610041243">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041228"></script>
+  <script type="module" src="js/app.js?v=202610041243"></script>
 </head>
 <body>
   <div class="app">
@@ -101,16 +101,17 @@
           <span class="fold-sub" id="prefs-summary"></span>
         </summary>
         <div class="fold-body">
+          <div class="row-label">Percorso</div>
+          <div class="segmented" role="radiogroup" aria-label="Tipo di percorso">
+            <label><input type="radio" name="style" value="direct" checked><span>Diretta</span></label>
+            <label><input type="radio" name="style" value="scenic"><span>Panoramica</span></label>
+          </div>
+          <p class="hint" id="style-hint"></p>
           <div class="row-label">Autostrade</div>
-          <div class="segmented" role="radiogroup" aria-label="Autostrade">
+          <div class="segmented" id="highways-choice" role="radiogroup" aria-label="Autostrade">
             <label><input type="radio" name="highways" value="0"><span>Evita</span></label>
             <label><input type="radio" name="highways" value="0.5"><span>Se serve</span></label>
             <label><input type="radio" name="highways" value="1" checked><span>Normale</span></label>
-          </div>
-          <div class="row-label">Percorso</div>
-          <div class="segmented" role="radiogroup" aria-label="Tipo di percorso">
-            <label><input type="radio" name="shortest" value="0" checked><span>Più veloce</span></label>
-            <label><input type="radio" name="shortest" value="1"><span>Più corto</span></label>
           </div>
           <label class="switch"><input type="checkbox" id="opt-unpaved" checked><span>Evita sterrato</span></label>
           <label class="switch"><input type="checkbox" id="opt-tolls"><span>Evita pedaggi</span></label>
@@ -122,6 +123,7 @@
         <h2 id="h-result">Percorso</h2>
         <div id="route-status" class="status" role="status" aria-live="polite"></div>
         <div id="route-summary" hidden>
+          <div class="curves" id="route-curves"></div>
           <ol id="legs" class="legs"></ol>
           <details class="inner-fold" id="roadbook-fold">
             <summary><span id="roadbook-title">Indicazioni</span></summary>

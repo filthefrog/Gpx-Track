@@ -18,12 +18,13 @@ import {
   defaultTripName,
   explainValhallaError,
   cumulativeDistances,
+  curvature,
   nearestShapeIndex,
   routeInsertIndex,
-} from './core.js?v=202610041228';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041228';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041228';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041228';
+} from './core.js?v=202610041243';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041243';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041243';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041243';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -933,11 +934,20 @@ $('#btn-new').addEventListener('click', () => {
 function prefsSummary() {
   const o = state.options;
   const hw = o.highways === 0 ? 'Senza autostrade' : o.highways === 0.5 ? 'Autostrade se servono' : 'Autostrade sì';
-  const parts = [hw, o.shortest ? 'più corto' : 'più veloce'];
+  const parts = o.style === 'scenic' ? ['Panoramica', 'senza autostrade'] : ['Diretta', hw];
   if (o.avoidUnpaved) parts.push('niente sterrato');
   if (o.avoidTolls) parts.push('niente pedaggi');
   if (o.avoidFerries) parts.push('niente traghetti');
   return parts.join(' · ');
+}
+
+/** Spiegazione della scelta e autostrade "spente" in panoramica (le evita sempre). */
+function syncStyle() {
+  const scenic = state.options.style === 'scenic';
+  $('#highways-choice').classList.toggle('off', scenic);
+  $('#style-hint').textContent = scenic
+    ? 'Senza autostrade. Per ogni tratto confronto fino a 3 percorsi e scelgo quello con più curve e tornanti, se non costa più del 40% di tempo in più. Lo sterrato segue la tua scelta qui sotto.'
+    : 'Il percorso più veloce per arrivare, con le preferenze qui sotto.';
 }
 
 function bindOptions() {
@@ -947,9 +957,10 @@ function bindOptions() {
       changed();
     }),
   );
-  document.querySelectorAll('input[name="shortest"]').forEach((r) =>
+  document.querySelectorAll('input[name="style"]').forEach((r) =>
     r.addEventListener('change', () => {
-      state.options.shortest = r.value === '1';
+      state.options.style = r.value === 'scenic' ? 'scenic' : 'direct';
+      syncStyle();
       changed();
     }),
   );
@@ -980,7 +991,8 @@ function syncControls() {
   $('#opt-ferries').checked = state.options.avoidFerries;
   $('#opt-unpaved').checked = state.options.avoidUnpaved;
   for (const r of document.querySelectorAll('input[name="highways"]')) r.checked = Number(r.value) === state.options.highways;
-  for (const r of document.querySelectorAll('input[name="shortest"]')) r.checked = (r.value === '1') === state.options.shortest;
+  for (const r of document.querySelectorAll('input[name="style"]')) r.checked = r.value === (state.options.style === 'scenic' ? 'scenic' : 'direct');
+  syncStyle();
 }
 
 // ---------------------------------------------------------------------------
@@ -1042,7 +1054,16 @@ async function recalc() {
   try {
     res = await fetchRoute(stops, loop, state.options, ctrl.signal);
     if (seq !== recalcSeq) return;
-    route = { parsed: parseTrip(res.trip), costing: res.costing, warning: res.warning, stops, loop };
+    const parsed = parseTrip(res.trip);
+    route = {
+      parsed,
+      costing: res.costing,
+      warning: res.warning,
+      stops,
+      loop,
+      scenic: res.scenic || null,
+      curves: curvature(parsed.shape, parsed.maneuvers.map((m) => m.begin)),
+    };
     routeKey = key;
   } catch (err) {
     if (err.name === 'AbortError' || seq !== recalcSeq) return;
@@ -1185,7 +1206,8 @@ function setDock(mode) {
 
 /** Nomi delle tratte: una tratta va da una tappa "sosta" alla successiva. */
 function legNames(r) {
-  const locs = routeLocations(r.stops, r.loop);
+  // in panoramica ogni tratto tra due tappe è calcolato a sé: ogni tappa chiude una tratta
+  const locs = routeLocations(r.scenic ? r.stops.map((s) => ({ ...s, type: 'break' })) : r.stops, r.loop);
   const names = locs.map((_, i) => (i < r.stops.length ? r.stops[i].name : r.stops[0].name));
   const breaks = locs.map((l, i) => (l.type === 'break' ? i : -1)).filter((i) => i >= 0);
   const out = [];
@@ -1228,6 +1250,8 @@ function renderResult() {
     legs.appendChild(li);
   }
 
+  renderCurves();
+
   const pts = buildRoutePoints(p, route.stops.filter((x) => !x.aux), route.loop);
   const shaping = pts.filter((x) => x.kind === 'shaping').length;
   $('#route-count').textContent = `${pts.length} punti (${pts.length - shaping} tappe e ${shaping} di passaggio).`;
@@ -1245,6 +1269,35 @@ function renderResult() {
     frag.appendChild(li);
   }
   rb.appendChild(frag);
+}
+
+/** Curve del percorso (gradi per km e tornanti) e, in panoramica, cosa è stato scelto. */
+function renderCurves() {
+  const box = $('#route-curves');
+  box.textContent = '';
+  if (!route || !route.curves) return;
+  const stat = (value, label, cls = '') => {
+    const el = document.createElement('span');
+    el.className = `stat ${cls}`;
+    el.innerHTML = '<b></b><span></span>';
+    el.querySelector('b').textContent = value;
+    el.querySelector('span').textContent = label;
+    box.appendChild(el);
+  };
+  const c = route.curves;
+  if (route.scenic) stat('Panoramica', '', 'scenic');
+  stat(`${Math.round(c.degPerKm)}°`, 'di curva per km');
+  stat(String(c.hairpins), c.hairpins === 1 ? 'tornante' : 'tornanti');
+  if (route.scenic) {
+    const s = route.scenic;
+    const note = document.createElement('p');
+    note.className = 'note';
+    const extra = Math.round(s.extraTime / 60);
+    note.textContent = s.withAlternatives
+      ? `Scelta tra ${s.considered} percorsi su ${s.segments} ${s.segments === 1 ? 'tratto' : 'tratti'}: il più ricco di curve, ${extra > 0 ? `${extra} min in più` : 'senza tempo in più'} rispetto al più veloce.`
+      : 'Il server non ha proposto alternative per queste tappe: è il percorso più veloce senza autostrade. Aggiungi una tappa intermedia per dare più scelta.';
+    box.appendChild(note);
+  }
 }
 
 function showManeuver(m) {
@@ -1276,7 +1329,8 @@ function gpxFile(kind) {
   const name = tripName();
   const now = new Date();
   // nomi aggiornati delle tappe (possono essere cambiati dopo il calcolo)
-  const stops = exportStops().map((s) => ({ ...s }));
+  // in panoramica ogni tappa chiude una tratta (vedi fetchScenic): le si tratta come soste
+  const stops = exportStops().map((s) => ({ ...s, ...(route.scenic ? { type: 'break' } : {}) }));
   const opts = { name, stops, loop: route.loop, parsed: route.parsed, time: now };
   if (kind === 'turn-by-turn') return { xml: buildTurnByTurnGpx(opts).xml, filename: gpxFileName(name, now, 'turn-by-turn') };
   if (kind === 'traccia') return { xml: buildTrackGpx(opts), filename: gpxFileName(name, now, 'traccia') };

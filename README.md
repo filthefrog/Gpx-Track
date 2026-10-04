@@ -74,7 +74,17 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
   percorso in tratte e non permette inversioni a U lì.
 - **Anello** per tornare alla partenza.
 - **Preferenze** (richiudibili, con riepilogo): autostrade Evita / Se servono / Sì (`use_highways` 0 / 0,5 / 1),
-  sterrato (`use_trails` 0 per evitarlo), pedaggi, traghetti, percorso più veloce o più corto.
+  sterrato (`use_trails` 0 per evitarlo), pedaggi, traghetti.
+- **Diretta o Panoramica**:
+  - **Diretta**: il percorso più veloce per arrivare, con le preferenze scelte.
+  - **Panoramica**: autostrade sempre evitate, sterrato secondo la tua scelta. Valhalla non ha un'opzione
+    "panoramica", quindi l'app usa un criterio misurabile, le curve (lo stesso principio delle app per motociclisti):
+    per ogni tratto tra due tappe chiede fino a 3 percorsi alternativi, ne misura i gradi di curva per km e i
+    tornanti (le svolte agli incroci non contano) e tiene il più ricco di curve tra quelli che non costano più
+    del 40% di tempo in più del più veloce. La scheda «Percorso» mostra curve per km, tornanti, quante alternative
+    sono state confrontate e quanto tempo in più costa. Se il server non propone alternative per un tratto,
+    resta il più veloce senza autostrade: aggiungere tappe intermedie dà più scelta.
+  - In entrambi i modi la scheda «Percorso» mostra i gradi di curva per km e il numero di tornanti del giro.
 - **Percorso**: tratte con km e tempo, totale e indicazioni svolta per svolta con km progressivi (tocca una riga per
   vederla sulla mappa, «Copia le indicazioni» per il testo).
 - **Giri salvati** sul dispositivo e **link condivisibile** con lo stato del giro nell'indirizzo.
