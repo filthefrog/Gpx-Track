@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Tracce Moto</title>
   <meta name="description" content="Da un elenco di località a un GPX turn by turn strada per strada, per giri in moto.">
-  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#111418" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#07090e" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <!-- schermata Home di iPhone -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Tracce Moto">
   <meta name="format-detection" content="telephone=no">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -19,10 +19,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041215">
+  <link rel="stylesheet" href="css/style.css?v=202610041223">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041215"></script>
+  <script type="module" src="js/app.js?v=202610041223"></script>
 </head>
 <body>
   <div class="app">
@@ -44,11 +44,22 @@
 
     <main class="panel" id="panel">
       <header class="top">
-        <img class="logo" src="icons/icon.svg" alt="" width="30" height="30">
-        <input id="trip-name" class="trip-name" type="text" autocomplete="off" maxlength="80"
-               placeholder="Nome del giro" aria-label="Nome del giro">
+        <img class="logo" src="icons/icon.svg" alt="" width="42" height="42">
+        <div class="top-text">
+          <div class="brand">Tracce Moto <span class="stripe" aria-hidden="true"><i></i><i></i><i></i></span></div>
+          <input id="trip-name" class="trip-name" type="text" autocomplete="off" maxlength="80"
+                 placeholder="Nuovo giro" aria-label="Nome del giro">
+        </div>
+        <button type="button" class="btn small" id="btn-install" hidden>Installa</button>
         <button type="button" class="btn ghost small" id="btn-new">Nuovo</button>
       </header>
+
+      <div class="install-hint" id="install-hint" hidden>
+        <p>Installa l'app: tocca
+          <svg viewBox="0 0 24 24" aria-label="Condividi"><path d="M12 15V3M7 8l5-5 5 5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+          e poi <b>Aggiungi alla schermata Home</b>.</p>
+        <button type="button" class="close" id="install-hint-close" aria-label="Chiudi">✕</button>
+      </div>
 
       <section class="card" aria-labelledby="h-stops">
         <h2 id="h-stops" class="visually-hidden">Tappe</h2>

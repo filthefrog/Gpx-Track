@@ -18,10 +18,10 @@ import {
   defaultTripName,
   explainValhallaError,
   cumulativeDistances,
-} from './core.js?v=202610041215';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041215';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041215';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041215';
+} from './core.js?v=202610041223';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041223';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041223';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041223';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -122,8 +122,13 @@ map.on('baselayerchange', (e) => {
 L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0a6ccf';
-const routeCasing = L.polyline([], { color: cssVar('--route-casing'), weight: 9, opacity: 0.9, interactive: false }).addTo(map);
-const routeLine = L.polyline([], { color: cssVar('--route'), weight: 5, opacity: 0.95, interactive: false }).addTo(map);
+const routeCasing = L.polyline([], { color: cssVar('--route-casing'), weight: 10, opacity: 0.9, interactive: false, lineCap: 'round' }).addTo(map);
+const routeLine = L.polyline([], { color: cssVar('--route'), weight: 6, opacity: 1, interactive: false, lineCap: 'round', className: 'route-line' }).addTo(map);
+// trattini bianchi che scorrono lungo il percorso
+const routeFlow = L.polyline([], { color: '#ffffff', weight: 2, opacity: 0.85, dashArray: '2 14', interactive: false, className: 'route-flow' }).addTo(map);
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const seenPins = new Set();
+const seenRows = new Set();
 const markersLayer = L.layerGroup().addTo(map);
 let maneuverMarker = null;
 let locateMarker = null;
@@ -145,7 +150,12 @@ function renderMarkers() {
     const role = roleOf(s);
     const size = role === 'through' ? 24 : 30;
     const m = L.marker([s.lat, s.lon], {
-      icon: L.divIcon({ className: '', html: `<div class="pin ${role}"><span>${i + 1}</span></div>`, iconSize: [size, size], iconAnchor: [size / 2, size + 2] }),
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="${seenPins.has(s.id) ? '' : 'pin-wrap'}"><div class="pin ${role}"><span>${i + 1}</span></div></div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size + 2],
+      }),
       draggable: true,
       autoPan: true,
       title: `${i + 1}. ${s.name}`,
@@ -162,6 +172,7 @@ function renderMarkers() {
         changed({ recalc: false });
       }
     });
+    seenPins.add(s.id);
     m.on('click', () => focusRow(s));
     markersLayer.addLayer(m);
   });
@@ -317,7 +328,8 @@ function renderStops() {
 
 function stopRow(s, i) {
   const li = document.createElement('li');
-  li.className = `stop ${s.status}`;
+  li.className = `stop ${s.status}${seenRows.has(s.id) ? '' : ' enter'}`;
+  seenRows.add(s.id);
   li.dataset.id = s.id;
   const role = roleOf(s);
   li.innerHTML = `
@@ -1004,6 +1016,7 @@ function clearRoute() {
   routeKey = '';
   routeLine.setLatLngs([]);
   routeCasing.setLatLngs([]);
+  routeFlow.setLatLngs([]);
   if (maneuverMarker) maneuverMarker.remove();
   renderResult();
 }
@@ -1011,6 +1024,8 @@ function clearRoute() {
 function drawRoute() {
   routeLine.setLatLngs(route.parsed.shape);
   routeCasing.setLatLngs(route.parsed.shape);
+  routeFlow.setLatLngs(route.parsed.shape);
+  animateRoute();
   const b = routeLine.getBounds();
   if (b.isValid() && !map.getBounds().contains(b)) map.fitBounds(b, { padding: [30, 30] });
 }
@@ -1039,12 +1054,54 @@ function showMapStatus(text, kind = '') {
 
 $('#map-status').addEventListener('click', () => $('#result-card').scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
+/** La linea del percorso si "disegna" dall'inizio alla fine. */
+function animateRoute() {
+  const path = routeLine.getElement && routeLine.getElement();
+  if (!path || reduceMotion || !path.getTotalLength) return;
+  const len = path.getTotalLength();
+  path.style.transition = 'none';
+  path.style.strokeDasharray = `${len}`;
+  path.style.strokeDashoffset = `${len}`;
+  path.getBoundingClientRect(); // applica lo stato iniziale prima della transizione
+  path.style.transition = '';
+  path.style.strokeDashoffset = '0';
+  const done = () => {
+    path.style.strokeDasharray = '';
+    path.style.strokeDashoffset = '';
+    path.removeEventListener('transitionend', done);
+  };
+  path.addEventListener('transitionend', done);
+  setTimeout(done, 1800); // se lo zoom interrompe la transizione
+}
+
+/** I km nella barra contano fino al valore nuovo. */
+let shownKm = 0;
+let countFrame = 0;
+function countKm(el, target) {
+  cancelAnimationFrame(countFrame);
+  const from = shownKm;
+  shownKm = target;
+  if (reduceMotion || Math.abs(target - from) < 0.05) {
+    el.textContent = formatKm(target);
+    return;
+  }
+  const t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / 700);
+    const e = 1 - (1 - k) ** 3;
+    el.textContent = formatKm(from + (target - from) * e);
+    if (k < 1) countFrame = requestAnimationFrame(step);
+  };
+  countFrame = requestAnimationFrame(step);
+}
+
 function setDock(mode) {
+  $('#dock').classList.toggle('busy', mode === 'busy');
   const ready = mode === 'ready';
   $('#btn-tbt-dl').disabled = !ready;
   $('#btn-tbt-share').disabled = !ready;
   if (ready) {
-    $('#dock-km').textContent = formatKm(route.parsed.summary.length);
+    countKm($('#dock-km'), route.parsed.summary.length);
     $('#dock-time').textContent = `${formatDuration(route.parsed.summary.time)} · ${turnByTurnInstructions(route.parsed).length} indicazioni`;
   } else if (mode === 'busy') {
     $('#dock-km').textContent = '…';
@@ -1377,15 +1434,117 @@ window.addEventListener('hashchange', () => {
 // ---------------------------------------------------------------------------
 
 let toastTimer = null;
-function toast(text, isError = false) {
+/** Messaggio in basso; con `action` ({ label, run }) mostra un pulsante e resta finché non si tocca. */
+function toast(text, isError = false, action = null) {
   const el = $('#toast');
-  el.textContent = text;
+  el.textContent = '';
+  const span = document.createElement('span');
+  span.textContent = text;
+  el.appendChild(span);
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toast-action';
+    b.textContent = action.label;
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      el.hidden = true;
+      action.run();
+    });
+    el.appendChild(b);
+  }
   el.className = `toast${isError ? ' error' : ''}`;
+  el.hidden = true;
+  void el.offsetWidth; // riparte l'animazione di entrata
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.hidden = true), isError ? 6000 : 3000);
+  if (!action) toastTimer = setTimeout(() => (el.hidden = true), isError ? 6000 : 3000);
 }
 $('#toast').addEventListener('click', () => ($('#toast').hidden = true));
+
+// ---------------------------------------------------------------------------
+// PWA: service worker, aggiornamenti e installazione
+// ---------------------------------------------------------------------------
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  // si ricarica solo dopo «Aggiorna» (alla prima installazione il service worker prende il controllo senza ricaricare)
+  let updateRequested = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!updateRequested) return;
+    updateRequested = false;
+    location.reload();
+  });
+  navigator.serviceWorker
+    .register('sw.js')
+    .then((reg) => {
+      const offer = (worker) =>
+        toast('Nuova versione di Tracce Moto disponibile.', false, {
+          label: 'Aggiorna',
+          run: () => {
+            updateRequested = true;
+            worker.postMessage('skipWaiting');
+          },
+        });
+      // versione nuova già scaricata e in attesa
+      if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const worker = reg.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) offer(worker);
+        });
+      });
+      // controlla gli aggiornamenti quando si torna sull'app
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch(() => {
+      // senza service worker l'app funziona lo stesso (solo online)
+    });
+}
+
+const STORAGE_HINT = 'tracceMoto.installHint';
+const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+function setupInstall() {
+  // Android e browser desktop: pulsante «Installa»
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    $('#btn-install').hidden = false;
+  });
+  $('#btn-install').addEventListener('click', async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice.catch(() => null);
+    deferred = null;
+    $('#btn-install').hidden = true;
+  });
+  window.addEventListener('appinstalled', () => {
+    $('#btn-install').hidden = true;
+    toast('Tracce Moto è installata.');
+  });
+  // iPhone: Safari non ha un pulsante, si spiega una volta come fare
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let dismissed = false;
+  try {
+    dismissed = localStorage.getItem(STORAGE_HINT) === '1';
+  } catch {
+    dismissed = false;
+  }
+  if (ios && !standalone && !dismissed) $('#install-hint').hidden = false;
+  $('#install-hint-close').addEventListener('click', () => {
+    $('#install-hint').hidden = true;
+    try {
+      localStorage.setItem(STORAGE_HINT, '1');
+    } catch {
+      // non importante
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Avvio
@@ -1393,6 +1552,8 @@ $('#toast').addEventListener('click', () => ($('#toast').hidden = true));
 
 bindOptions();
 renderSaved();
+registerServiceWorker();
+setupInstall();
 if (!loadFromHash()) {
   const saved = readJson(STORAGE_CURRENT, null);
   if (saved && Array.isArray(saved.stops) && saved.stops.length) applySnapshot(saved);
