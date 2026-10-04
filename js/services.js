@@ -1,5 +1,6 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { buildValhallaRequest, valhallaUrl, isCostingError } from './core.js';
+import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError } from './core.js';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
@@ -29,42 +30,49 @@ async function getJson(url, signal) {
   return { res, body };
 }
 
-async function requestRoute(stops, loop, options, costing, signal) {
-  const req = buildValhallaRequest(stops, loop, options, costing);
+async function requestRoute(stops, loop, options, costing, snap, signal) {
+  const req = buildValhallaRequest(stops, loop, options, costing, { snap });
   const { res, body } = await getJson(valhallaUrl(VALHALLA_URL, req), signal);
   if (!res.ok || !body || !body.trip) {
-    const err = new RouteError((body && body.error) || `HTTP ${res.status}`, {
+    throw new RouteError((body && body.error) || `HTTP ${res.status}`, {
       status: res.status,
       error_code: body && body.error_code,
       error: body && body.error,
     });
-    throw err;
   }
   return body.trip;
 }
 
-/**
- * Calcola il percorso con costing "motorcycle"; se il server non lo supporta
- * riprova con "auto". Restituisce { trip, costing, warning }.
- */
 const AUTO_WARNING =
   'Il server non supporta il profilo moto: il percorso è calcolato come per un\'auto. Controlla le strade strette o vietate alle moto.';
 
 // se il server ha già rifiutato "motorcycle", non lo richiediamo a ogni ricalcolo
 let motorcycleRejected = false;
 
+/**
+ * Calcola il percorso con costing "motorcycle"; se il server non lo supporta
+ * riprova con "auto". Se una località non ha strade "vere" vicine (errore 171),
+ * riprova senza il filtro che esclude le strade di servizio.
+ * Restituisce { trip, costing, warning }.
+ */
 export async function fetchRoute(stops, loop, options, signal) {
-  if (!motorcycleRejected) {
-    try {
-      const trip = await requestRoute(stops, loop, options, 'motorcycle', signal);
-      return { trip, costing: 'motorcycle', warning: null };
-    } catch (e) {
-      if (!isCostingError(e)) throw e;
-      motorcycleRejected = true;
+  const attempt = async (snap) => {
+    if (!motorcycleRejected) {
+      try {
+        return { trip: await requestRoute(stops, loop, options, 'motorcycle', snap, signal), costing: 'motorcycle', warning: null };
+      } catch (e) {
+        if (!isCostingError(e)) throw e;
+        motorcycleRejected = true;
+      }
     }
+    return { trip: await requestRoute(stops, loop, options, 'auto', snap, signal), costing: 'auto', warning: AUTO_WARNING };
+  };
+  try {
+    return await attempt(true);
+  } catch (e) {
+    if (!isSnapError(e) || !stops.some((s) => s.snap)) throw e;
+    return attempt(false);
   }
-  const trip = await requestRoute(stops, loop, options, 'auto', signal);
-  return { trip, costing: 'auto', warning: AUTO_WARNING };
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +95,7 @@ function throttled(fn) {
 }
 
 async function nominatim(path, params) {
-  const qs = new URLSearchParams({ format: 'jsonv2', 'accept-language': 'it', ...params });
+  const qs = new URLSearchParams({ format: 'jsonv2', 'accept-language': 'it', addressdetails: '1', ...params });
   return throttled(async () => {
     let res;
     try {
@@ -102,39 +110,33 @@ async function nominatim(path, params) {
   });
 }
 
-/** Cerca luoghi per testo. Restituisce [{ lat, lon, name, detail }]. */
-export async function searchPlaces(query, near) {
-  const params = { q: query, limit: '6', addressdetails: '1' };
-  if (near) {
-    // privilegia i risultati vicini alla zona visibile, senza escludere gli altri
-    params.viewbox = near.join(',');
+function coordLabel(lat, lon) {
+  return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+}
+
+/**
+ * Cerca un luogo. Accetta nomi ("Passo Gavia", "Bormio, Sondrio"), coordinate e
+ * link di Google/Apple Maps o OpenStreetMap.
+ * `near` = [lat, lon] della tappa precedente, per preferire gli omonimi vicini.
+ * Restituisce i candidati migliori: [{ lat, lon, name, context, kind, category }].
+ */
+export async function searchPlaces(query, { near = null } = {}) {
+  const coords = parseCoordinates(query);
+  if (coords) {
+    const [lat, lon] = coords;
+    const place = await reverseGeocode(lat, lon).catch(() => null);
+    return [{ lat, lon, name: place ? place.name : coordLabel(lat, lon), context: place ? place.context : coordLabel(lat, lon), kind: 'Coordinate', category: 'coords' }];
   }
-  const list = await nominatim('search', params);
-  return list.map((r) => ({
-    lat: Number(r.lat),
-    lon: Number(r.lon),
-    name: placeName(r),
-    detail: r.display_name,
-  }));
+  for (const v of queryVariants(query)) {
+    const list = await nominatim('search', { q: v.q, limit: '8', extratags: '1' });
+    if (list.length) return rankPlaces(list, { near, kind: v.kind }).slice(0, 6);
+  }
+  return [];
 }
 
-/** Nome leggibile del punto alle coordinate date. */
+/** Nome e contesto del punto alle coordinate date. */
 export async function reverseGeocode(lat, lon) {
-  const r = await nominatim('reverse', { lat: String(lat), lon: String(lon), zoom: '16', addressdetails: '1' });
+  const r = await nominatim('reverse', { lat: String(lat), lon: String(lon), zoom: '16' });
   if (!r || r.error) return null;
-  return placeName(r);
-}
-
-/** Nome breve: "Passo dello Stelvio", "Via Roma, Sirolo"… */
-export function placeName(r) {
-  const a = r.address || {};
-  const town = a.village || a.town || a.city || a.hamlet || a.municipality || a.county || '';
-  const road = a.road || a.pedestrian || a.path || '';
-  const named = r.name && r.name !== road && r.name !== town ? r.name : '';
-  const parts = [];
-  if (named) parts.push(named);
-  else if (road) parts.push(a.house_number ? `${road} ${a.house_number}` : road);
-  if (town && !parts.includes(town)) parts.push(town);
-  if (!parts.length) return (r.display_name || '').split(',').slice(0, 2).join(',').trim() || 'Punto sulla mappa';
-  return parts.join(', ');
+  return { name: placeName(r), context: placeContext(r) };
 }

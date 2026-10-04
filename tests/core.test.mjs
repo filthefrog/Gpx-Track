@@ -472,7 +472,7 @@ test('encodeState/decodeState: andata e ritorno con accenti ed emoji', () => {
     options: { highways: 0.5, avoidTolls: true, avoidFerries: false, avoidUnpaved: false, shortest: true },
     stops: [
       { lat: 43.522468, lon: 13.618123, name: 'Sirolo', type: 'break' },
-      { lat: 46.528634, lon: 10.453052, name: 'Passo dello Stelvio', type: 'through' },
+      { lat: 46.528634, lon: 10.453052, name: 'Passo dello Stelvio', type: 'through', snap: true },
     ],
   };
   const enc = encodeState(state);
@@ -482,6 +482,8 @@ test('encodeState/decodeState: andata e ritorno con accenti ed emoji', () => {
   assert.equal(dec.loop, true);
   assert.deepEqual(dec.options, state.options);
   assert.equal(dec.stops[1].type, 'through');
+  assert.equal(dec.stops[1].snap, true);
+  assert.equal(dec.stops[0].snap, false);
   assert.ok(near(dec.stops[0].lat, 43.52247, 1e-9));
   assert.throws(() => decodeState('#g=xyz'));
 });

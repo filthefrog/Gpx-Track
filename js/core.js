@@ -203,15 +203,26 @@ export function bestInsertionIndex(stops, point, loop = false) {
   return best;
 }
 
-/** Elenco delle location per Valhalla (con ritorno alla partenza se richiesto). */
-export function routeLocations(stops, loop = false) {
-  const list = stops.map((s, i) => ({
+// Paesi e passi trovati con la ricerca vanno agganciati a una strada vera:
+// senza filtro Valhalla può partire da un vialetto o da una carrareccia vicina al centro.
+const ROAD_FILTER = { min_road_class: 'residential' };
+
+/**
+ * Elenco delle location per Valhalla (con ritorno alla partenza se richiesto).
+ * Con `snap` le tappe che hanno `snap: true` escludono strade di servizio e sentieri.
+ */
+export function routeLocations(stops, loop = false, { snap = false } = {}) {
+  const loc = (s, type) => ({
     lat: round6(s.lat),
     lon: round6(s.lon),
-    // partenza e arrivo devono essere "break"; gli intermedi seguono la scelta dell'utente
-    type: i === 0 || (i === stops.length - 1 && !loop) ? 'break' : s.type === 'through' ? 'through' : 'break',
-  }));
-  if (loop && stops.length >= 2) list.push({ lat: round6(stops[0].lat), lon: round6(stops[0].lon), type: 'break' });
+    type,
+    ...(snap && s.snap ? { search_filter: { ...ROAD_FILTER } } : {}),
+  });
+  // partenza e arrivo devono essere "break"; gli intermedi seguono la scelta dell'utente
+  const list = stops.map((s, i) =>
+    loc(s, i === 0 || (i === stops.length - 1 && !loop) ? 'break' : s.type === 'through' ? 'through' : 'break'),
+  );
+  if (loop && stops.length >= 2) list.push(loc(stops[0], 'break'));
   return list;
 }
 
@@ -228,7 +239,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
 });
 
 /** Corpo della richiesta /route per Valhalla. */
-export function buildValhallaRequest(stops, loop, options = DEFAULT_OPTIONS, costing = 'motorcycle') {
+export function buildValhallaRequest(stops, loop, options = DEFAULT_OPTIONS, costing = 'motorcycle', { snap = true } = {}) {
   const o = { ...DEFAULT_OPTIONS, ...options };
   const common = {
     use_highways: o.highways,
@@ -241,7 +252,7 @@ export function buildValhallaRequest(stops, loop, options = DEFAULT_OPTIONS, cos
       ? { ...common, use_trails: o.avoidUnpaved ? 0 : 0.5 }
       : { ...common, ...(o.avoidUnpaved ? { exclude_unpaved: true } : {}) };
   return {
-    locations: routeLocations(stops, loop),
+    locations: routeLocations(stops, loop, { snap }),
     costing,
     costing_options: { [costing]: costingOptions },
     directions_options: { units: 'kilometers', language: 'it-IT' },
@@ -251,6 +262,11 @@ export function buildValhallaRequest(stops, loop, options = DEFAULT_OPTIONS, cos
 /** URL GET con il JSON nel parametro ?json= (evita il preflight CORS). */
 export function valhallaUrl(base, request) {
   return `${base}?json=${encodeURIComponent(JSON.stringify(request))}`;
+}
+
+/** Vero se Valhalla non trova una strada vicino a una tappa (si può riprovare senza filtro). */
+export function isSnapError(err) {
+  return !!err && (err.error_code === 170 || err.error_code === 171);
 }
 
 /** Vero se l'errore Valhalla indica che il costing richiesto non è disponibile. */
@@ -881,7 +897,7 @@ export function encodeState(state) {
     n: state.name || '',
     l: state.loop ? 1 : 0,
     o: [o.highways, o.avoidTolls ? 1 : 0, o.avoidFerries ? 1 : 0, o.avoidUnpaved ? 1 : 0, o.shortest ? 1 : 0],
-    s: (state.stops || []).map((s) => [round5(s.lat), round5(s.lon), s.name || '', s.type === 'through' ? 1 : 0]),
+    s: (state.stops || []).map((s) => [round5(s.lat), round5(s.lon), s.name || '', s.type === 'through' ? 1 : 0, s.snap ? 1 : 0]),
   };
   return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(compact)));
 }
@@ -909,7 +925,7 @@ export function decodeState(str) {
     },
     stops: c.s
       .filter((s) => Array.isArray(s) && Number.isFinite(s[0]) && Number.isFinite(s[1]))
-      .map((s) => ({ lat: s[0], lon: s[1], name: String(s[2] || ''), type: s[3] ? 'through' : 'break' })),
+      .map((s) => ({ lat: s[0], lon: s[1], name: String(s[2] || ''), type: s[3] ? 'through' : 'break', snap: !!s[4] })),
   };
 }
 

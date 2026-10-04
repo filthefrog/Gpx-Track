@@ -88,7 +88,7 @@ async function geocode() {
     } catch {
       console.log(`  (Nominatim non disponibile per "${p.q}": uso le coordinate di riserva)`);
     }
-    stops.push({ lat, lon, name, type: 'break' });
+    stops.push({ lat, lon, name, type: 'break', snap: true });
   }
   return stops;
 }
