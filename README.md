@@ -47,6 +47,20 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 - **Aggancio alla strada**: paesi e passi trovati con la ricerca vengono collegati a una strada vera
   (Valhalla esclude strade di servizio e sentieri vicino a quel punto). Se lì non c'è nessuna strada adatta,
   il calcolo riprova senza filtro. I punti toccati o trascinati sulla mappa restano esattamente dove sono.
+- **Passi di montagna**: sotto ogni passo intermedio c'è l'etichetta ⛰ con tre modi:
+  - **Automatico**: il percorso sceglie da che parte salire e scendere in base alle tappe prima e dopo;
+  - **Completo**: sali da un versante e scendi dall'altro (scegli tu da dove salire e verso dove scendere);
+  - **Andata e ritorno**: sali fino in cima e torni giù dallo stesso versante.
+
+  I versanti si ricavano dalle strade OpenStreetMap attorno alla cima (servizio Overpass, gratuito e senza chiave):
+  l'app segue ogni strada che parte dal passo restando sulla stessa strada agli incroci, esclude le stradine senza
+  uscita e dà a ogni versante il nome del paese verso cui scende («Bormio (sud)», «Trafoi (nord-est)»).
+  Per obbligare il percorso, aggiunge un punto di passaggio sulla strada di ogni versante a circa 1,5 km dalla cima;
+  questi punti non compaiono come tappe nel GPX. Di default si sale dal versante rivolto verso la tappa precedente.
+  Dopo il calcolo, se in automatico il percorso sale e torna indietro dallo stesso versante, l'app lo segnala
+  sotto il passo e propone «Fai il passo completo».
+- **Mappa**: «Stradale (nitida)» (CARTO Voyager, con tile ad alta risoluzione per gli schermi Retina) è quella
+  predefinita; restano OpenStreetMap e OpenTopoMap. L'app ricorda la mappa scelta.
 - **Tocco sulla mappa**: mostra nome e zona del punto con «Usa come tappa…» oppure «Inserisci tra le tappe»
   (nella posizione che allunga meno il giro). I marker numerati si trascinano.
 - **Sosta o passaggio** per le tappe intermedie: tocca l'etichetta sotto la tappa. Un passaggio non spezza il
@@ -161,7 +175,9 @@ Consigli:
   non fosse disponibile l'app usa `auto` e lo segnala.
 - **Nominatim**: al massimo 1 richiesta al secondo e niente autocompletamento (per questo la ricerca parte solo con invio).
   Un uso intenso può essere bloccato temporaneamente.
-- **Tile OpenStreetMap e OpenTopoMap**: pensati per un uso leggero. OpenTopoMap arriva al massimo allo zoom 17
+- **Overpass** (`overpass-api.de`, per i versanti dei passi): server pubblico che a volte è occupato; in quel
+  caso l'app lo dice e si può riprovare. Una sola richiesta per passo, solo quando scegli «Completo» o «Andata e ritorno».
+- **Tile CARTO, OpenStreetMap e OpenTopoMap**: pensati per un uso leggero (CARTO è gratuito per uso non commerciale). OpenTopoMap arriva al massimo allo zoom 17
   e a volte è lento. Non c'è uso offline: scarica i GPX prima di partire.
 - **Dati OpenStreetMap**: possono contenere errori e non conoscono chiusure stagionali o temporanee.
   Stelvio e Gavia, per esempio, sono chiusi d'inverno (indicativamente da fine ottobre/novembre a maggio/giugno):
@@ -175,10 +191,12 @@ index.html              pagina, meta per iPhone, Leaflet da cdnjs
 css/style.css           stile mobile first, tema chiaro e scuro, safe area
 js/core.js              funzioni pure: polyline, RDP, inserimento tappe, GPX, roadbook, stato nell'URL
 js/places.js            funzioni pure per i luoghi: coordinate, varianti di ricerca, ordine dei risultati
+js/passes.js            funzioni pure per i passi: versanti dalle strade OSM, passo completo o andata e ritorno
 js/services.js          Valhalla e Nominatim (coda a 1 richiesta al secondo)
 js/app.js               interfaccia
 tests/core.test.mjs     test delle funzioni pure (Node, senza dipendenze)
 tests/places.test.mjs   test della ricerca dei luoghi
+tests/passes.test.mjs   test dei versanti dei passi (rete stradale sintetica)
 tests/collaudo.mjs      collaudo con i servizi reali
 ```
 
