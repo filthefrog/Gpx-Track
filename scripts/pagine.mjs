@@ -77,8 +77,8 @@ function render(page) {
   <meta property="og:description" content="${esc(page.description)}">
   <meta property="og:url" content="${esc(canonical)}">
   <meta property="og:image" content="${esc(CONFIG.siteUrl)}/icons/icon-512.png">
-  <meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#07090e" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121210" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <link rel="icon" href="${up}icons/icon.svg" type="image/svg+xml">
@@ -96,7 +96,7 @@ function render(page) {
     <a class="site-brand" href="${up}./">
       <img src="${up}icons/icon.svg" alt="" width="34" height="34">
       <span>Tracce Moto</span>
-      <span class="stripe" aria-hidden="true"><i></i><i></i><i></i></span>
+     
     </a>
     <nav class="site-nav" aria-label="Sito">
       <a href="${up}guide/">Guide</a>

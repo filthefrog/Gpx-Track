@@ -25,12 +25,12 @@ import {
   gpxToStops,
   elevationStats,
   stopShapeIndices,
-} from './core.js?v=202610041332';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041332';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041332';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041332';
-import { CONFIG } from './config.js?v=202610041332';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041332';
+} from './core.js?v=202610041706';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041706';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041706';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041706';
+import { CONFIG } from './config.js?v=202610041706';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041706';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
