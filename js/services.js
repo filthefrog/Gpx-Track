@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { DEFAULT_OPTIONS, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610041754';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041754';
-import { overpassQuery, passSides } from './passes.js?v=202610041754';
+import { DEFAULT_OPTIONS, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610041804';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041804';
+import { overpassQuery, passSides } from './passes.js?v=202610041804';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const HEIGHT_URL = 'https://valhalla1.openstreetmap.de/height';

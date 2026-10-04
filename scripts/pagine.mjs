@@ -96,7 +96,7 @@ function render(page) {
   const canonical = `${CONFIG.siteUrl}/${page.path.replace(/index\.html$/, '')}`;
   const ld = {
     '@context': 'https://schema.org',
-    '@type': page.path.startsWith('guide/') && !page.path.endsWith('index.html') ? 'Article' : 'WebPage',
+    '@type': page.path.startsWith('guide/') && page.path !== 'guide/index.html' ? 'Article' : 'WebPage',
     headline: page.title,
     name: page.title,
     description: page.description,
@@ -154,9 +154,9 @@ ${body.trim()}
       <a href="${up}./">Pianifica un giro</a>
       <a href="${up}guide/">Guide</a>
       <a href="${up}plus/">Traccemoto Plus</a>
-      <a href="${up}sostieni.html">Sostieni</a>
-      <a href="${up}info.html">Chi siamo e contatti</a>
-      <a href="${up}privacy.html">Privacy e cookie</a>
+      <a href="${up}sostieni/">Sostieni</a>
+      <a href="${up}info/">Chi siamo e contatti</a>
+      <a href="${up}privacy/">Privacy e cookie</a>
     </nav>
     <p>© ${new Date().getFullYear()} Traccemoto. Gratuito per chi lo usa. Mappe e dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> e contributori.
       Controlla sempre percorsi, aperture dei passi e divieti prima di partire.</p>

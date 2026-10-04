@@ -314,7 +314,7 @@ js/places.js            funzioni pure per i luoghi: coordinate, varianti di rice
 js/config.js            configurazione di annunci AdSense e donazioni (vedi docs/guadagni.md)
 css/sito.css            stile delle pagine di contenuto
 contenuti/*.html        testi di guide, privacy, info e sostieni
-scripts/pagine.mjs      genera guide/, privacy.html, info.html, sostieni.html, sitemap.xml, robots.txt, ads.txt
+scripts/pagine.mjs      genera guide/, privacy/, info/, sostieni/, plus/, convertitore, sitemap.xml, robots.txt, ads.txt
 scripts/build.mjs       prepara dist/ con i soli file pubblici (Cloudflare Pages)
 functions/api/          Pages Functions: lista d'attesa di Traccemoto Plus (database D1)
 migrations/             tabelle del database D1

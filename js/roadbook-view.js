@@ -1,7 +1,7 @@
 // Anteprima, stampa e GPX OpenRally del roadbook: usata dallo strumento (app.js) e dalla pagina del
 // convertitore GPX → roadbook (convertitore.js). Crea da sola la sua finestra; stile in css/roadbook.css.
-import { escapeXml, gpxFileName } from './core.js?v=202610041754';
-import { buildRoadbook, buildOpenRallyGpx, turnByTurnFromGpx, tulipSvg, noteLines, rbKm } from './roadbook.js?v=202610041754';
+import { escapeXml, gpxFileName } from './core.js?v=202610041804';
+import { buildRoadbook, buildOpenRallyGpx, turnByTurnFromGpx, tulipSvg, noteLines, rbKm } from './roadbook.js?v=202610041804';
 
 const FORMATS = {
   // A4 orizzontale con due strisce da 148,5 mm (larghezza A5): si tagliano e si uniscono per il rotolo

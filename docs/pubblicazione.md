@@ -17,18 +17,19 @@ Segui l'ordine: così il sito non va mai offline.
 2. Se il dominio è presso un altro registrar: in Cloudflare «Add a site», piano **Free**, e cambia i nameserver dal
    pannello del registrar con i due indicati da Cloudflare.
 
-## 2. Il sito su Cloudflare Pages
+## 2. Il sito su Cloudflare (Workers con file statici)
 
-1. Cloudflare › **Workers & Pages** › **Create** › **Pages** › **Connect to Git**.
-2. Autorizza l'app Cloudflare su GitHub, **solo** per il repository del sito.
-3. Impostazioni di build:
-   - Production branch: `main`
-   - Framework preset: **None**
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-4. **Save and Deploy**. Dopo un minuto il sito è su `https://<nome-progetto>.pages.dev`: aprilo e prova.
-5. **Custom domains** › aggiungi `traccemoto.it` e `www.traccemoto.it` (Cloudflare crea da solo i record DNS e il
-   certificato HTTPS).
+Cloudflare oggi crea i nuovi progetti da Git come **Workers**; il repository è già pronto per questo
+(`wrangler.jsonc`, `worker/index.js`): la build crea `dist/`, e il deploy lo pubblica insieme alla piccola API
+della lista d'attesa. I file del sito sono serviti direttamente da Cloudflare (gratis e senza limiti di banda).
+
+1. Cloudflare › **Workers & Pages** › **Create** › collega il repository GitHub (solo `Gpx-Track`).
+2. Impostazioni: Build command `npm run build`, Deploy command `npx wrangler deploy` (quello predefinito).
+   Il nome del progetto deve essere uguale a `name` in `wrangler.jsonc` (oggi `gpx-track`): se scegli un altro nome,
+   cambia quel campo e fai push.
+3. Dopo la pubblicazione il sito è su `https://<nome>.<tuo-account>.workers.dev`.
+4. Progetto › **Settings** › **Domains & Routes** › **Add** › **Custom domain**: `traccemoto.it` e
+   `www.traccemoto.it` (Cloudflare crea DNS e certificato HTTPS).
 
 Da qui in poi ogni push su `main` ripubblica il sito da solo.
 
@@ -63,8 +64,8 @@ Function** (`functions/api/lista-attesa.js`, pubblicata da sola insieme al sito)
 
 1. Cloudflare › **Storage & Databases** › **D1** › **Create database**, nome `traccemoto`.
 2. Nella console del database incolla ed esegui il contenuto di `migrations/0001_lista_attesa.sql`.
-3. Workers & Pages › il progetto › **Settings** › **Bindings** › **Add** › **D1 database**: nome variabile `DB`,
-   database `traccemoto` (sia per Production sia per Preview).
+3. Copia l'ID del database (D1 › traccemoto) e in `wrangler.jsonc` togli il commento a `d1_databases`, con
+   `binding: "DB"`, `database_name: "traccemoto"` e il tuo `database_id`. Poi push.
 4. In `js/config.js` imposta `waitlist: true`, poi `npm run versione` e push.
 5. Prova: iscriviti dalla pagina `/plus/` e controlla in D1 › Console: `SELECT * FROM lista_attesa;`
 

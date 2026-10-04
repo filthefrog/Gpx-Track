@@ -13,7 +13,7 @@ await import('./pagine.mjs');
 
 const PUBLIC = [
   'index.html', 'sw.js', 'manifest.webmanifest', 'robots.txt', 'sitemap.xml', 'ads.txt', '_headers',
-  'privacy.html', 'info.html', 'sostieni.html',
+  'privacy', 'info', 'sostieni',
   'css', 'js', 'fonts', 'icons', 'guide', 'convertitore-gpx-roadbook', 'plus',
 ];
 

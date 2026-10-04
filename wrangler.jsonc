@@ -1,0 +1,16 @@
+{
+  // Il nome deve coincidere con quello del progetto su Cloudflare (Workers & Pages).
+  "name": "gpx-track",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // solo l'API passa dal Worker; pagine e file del sito sono serviti direttamente (gratis e illimitati)
+    "run_worker_first": ["/api/*"],
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+  // Lista d'attesa di Plus: dopo aver creato il database D1 aggiungi qui sotto (vedi docs/pubblicazione.md)
+  // "d1_databases": [{ "binding": "DB", "database_name": "traccemoto", "database_id": "..." }]
+}
