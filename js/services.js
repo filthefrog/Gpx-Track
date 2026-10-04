@@ -1,9 +1,11 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
 import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError } from './core.js';
 import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js';
+import { overpassQuery, passSides } from './passes.js';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
+export const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 /** Errore con i dettagli di Valhalla (error_code, status HTTP, problema di rete). */
 export class RouteError extends Error {
@@ -139,4 +141,37 @@ export async function reverseGeocode(lat, lon) {
   const r = await nominatim('reverse', { lat: String(lat), lon: String(lon), zoom: '16' });
   if (!r || r.error) return null;
   return { name: placeName(r), context: placeContext(r) };
+}
+
+/** Comune o paese alle coordinate date (per dare un nome ai versanti di un passo). */
+async function townAt(lat, lon) {
+  const r = await nominatim('reverse', { lat: String(lat), lon: String(lon), zoom: '13' });
+  const a = (r && r.address) || {};
+  return a.village || a.town || a.city || a.hamlet || a.municipality || '';
+}
+
+// ---------------------------------------------------------------------------
+// Overpass: strade attorno a un passo
+// ---------------------------------------------------------------------------
+
+/**
+ * Versanti del passo: [{ via, end, bearing, compass, length, road, place }].
+ * `place` è il paese verso cui scende il versante (può mancare).
+ */
+export async function fetchPassSides(lat, lon) {
+  let res;
+  try {
+    res = await fetch(`${OVERPASS_URL}?data=${encodeURIComponent(overpassQuery(lat, lon))}`);
+  } catch {
+    throw new Error('Impossibile leggere le strade del passo: controlla la connessione e riprova.');
+  }
+  if (res.status === 429 || res.status === 504)
+    throw new Error('Il servizio delle strade (Overpass) è occupato. Riprova tra un minuto.');
+  if (!res.ok) throw new Error(`Lettura delle strade del passo non riuscita (HTTP ${res.status}). Riprova tra poco.`);
+  const body = await res.json();
+  const sides = passSides(body.elements || [], [lat, lon]);
+  for (const side of sides) {
+    side.place = await townAt(side.end[0], side.end[1]).catch(() => '');
+  }
+  return sides;
 }

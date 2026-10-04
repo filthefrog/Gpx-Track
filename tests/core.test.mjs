@@ -486,6 +486,26 @@ test('encodeState/decodeState: andata e ritorno con accenti ed emoji', () => {
   assert.equal(dec.stops[0].snap, false);
   assert.ok(near(dec.stops[0].lat, 43.52247, 1e-9));
   assert.throws(() => decodeState('#g=xyz'));
+  // le scelte sui passi viaggiano nel link
+  const withPass = {
+    ...state,
+    stops: [
+      ...state.stops,
+      { lat: 46.34, lon: 10.48, name: 'Passo di Gavia', type: 'through', pass: { mode: 'full', up: 1, down: 0, sides: [
+        { via: [46.33, 10.49], bearing: 190.4, place: 'Ponte di Legno' },
+        { via: [46.355, 10.47], bearing: 20, place: 'Santa Caterina Valfurva' },
+      ] } },
+      { lat: 46.5, lon: 10.4, name: 'Passo X', pass: { mode: 'auto', sides: null } },
+    ],
+  };
+  const back = decodeState(encodeState(withPass)).stops;
+  assert.equal(back[2].pass.mode, 'full');
+  assert.equal(back[2].pass.up, 1);
+  assert.deepEqual(back[2].pass.sides[1].via, [46.355, 10.47]);
+  assert.equal(back[2].pass.sides[0].place, 'Ponte di Legno');
+  assert.equal(back[2].pass.sides[0].bearing, 190);
+  assert.deepEqual(back[3].pass, { mode: 'auto', sides: null, up: 0, down: 0 });
+  assert.equal(back[0].pass, undefined);
 });
 
 test('gpxFileName e defaultTripName', () => {

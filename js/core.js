@@ -897,9 +897,30 @@ export function encodeState(state) {
     n: state.name || '',
     l: state.loop ? 1 : 0,
     o: [o.highways, o.avoidTolls ? 1 : 0, o.avoidFerries ? 1 : 0, o.avoidUnpaved ? 1 : 0, o.shortest ? 1 : 0],
-    s: (state.stops || []).map((s) => [round5(s.lat), round5(s.lon), s.name || '', s.type === 'through' ? 1 : 0, s.snap ? 1 : 0]),
+    s: (state.stops || []).map((s) => [round5(s.lat), round5(s.lon), s.name || '', s.type === 'through' ? 1 : 0, s.snap ? 1 : 0, encodePass(s.pass)]),
   };
   return bytesToBase64Url(new TextEncoder().encode(JSON.stringify(compact)));
+}
+
+const PASS_MODES = ['auto', 'full', 'half'];
+
+// Passo: [modo, versante di salita, di discesa, versanti [lat, lon, paese, direzione]]
+function encodePass(p) {
+  if (!p) return 0;
+  const mode = Math.max(0, PASS_MODES.indexOf(p.mode));
+  if (!Array.isArray(p.sides) || !p.sides.length) return [mode];
+  return [mode, p.up || 0, p.down || 0, p.sides.map((x) => [round5(x.via[0]), round5(x.via[1]), x.place || '', Math.round(x.bearing || 0)])];
+}
+
+function decodePass(c) {
+  if (!Array.isArray(c)) return null;
+  const pass = { mode: PASS_MODES[c[0]] || 'auto', sides: null, up: 0, down: 0 };
+  if (Array.isArray(c[3]) && c[3].length) {
+    pass.sides = c[3].map(([lat, lon, place, bearing]) => ({ via: [lat, lon], end: [lat, lon], place: String(place || ''), bearing: Number(bearing) || 0 }));
+    pass.up = Math.min(Number(c[1]) || 0, pass.sides.length - 1);
+    pass.down = Math.min(Number(c[2]) || 0, pass.sides.length - 1);
+  }
+  return pass;
 }
 
 function round5(v) {
@@ -925,7 +946,12 @@ export function decodeState(str) {
     },
     stops: c.s
       .filter((s) => Array.isArray(s) && Number.isFinite(s[0]) && Number.isFinite(s[1]))
-      .map((s) => ({ lat: s[0], lon: s[1], name: String(s[2] || ''), type: s[3] ? 'through' : 'break', snap: !!s[4] })),
+      .map((s) => {
+        const stop = { lat: s[0], lon: s[1], name: String(s[2] || ''), type: s[3] ? 'through' : 'break', snap: !!s[4] };
+        const pass = decodePass(s[5]);
+        if (pass) stop.pass = pass;
+        return stop;
+      }),
   };
 }
 
