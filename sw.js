@@ -1,6 +1,6 @@
 // Service worker di Tracce Moto: app disponibile offline e mappa già vista in cache.
 // VERSION viene aggiornata da `npm run versione` insieme ai ?v= di CSS e moduli.
-const VERSION = '202610041326';
+const VERSION = '202610041332';
 const SHELL = `tracce-shell-${VERSION}`;
 const TILES = 'tracce-mappa-v1';
 const MAX_TILES = 1500;
@@ -16,7 +16,7 @@ const ASSETS = [
   'index.html',
   'manifest.webmanifest',
   `css/style.css?v=${VERSION}`,
-  ...['app', 'core', 'places', 'passes', 'services', 'nav', 'navigation', 'legs'].map((m) => `js/${m}.js?v=${VERSION}`),
+  ...['app', 'core', 'places', 'passes', 'services', 'legs', 'config'].map((m) => `js/${m}.js?v=${VERSION}`),
   'icons/icon.svg',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
@@ -60,6 +60,12 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   // la pagina: prima la rete (per avere sempre l'ultima versione), offline quella salvata
+  // le guide e le altre pagine del sito: solo rete (offline, quella eventualmente in cache)
+  const root = new URL('./', self.location).pathname;
+  if (req.mode === 'navigate' && url.pathname !== root && url.pathname !== `${root}index.html`) {
+    event.respondWith(fetch(req).catch(async () => (await caches.match(req)) || Response.error()));
+    return;
+  }
   if (req.mode === 'navigate') {
     event.respondWith(
       (async () => {

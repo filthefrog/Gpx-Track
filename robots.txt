@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://filthefrog.github.io/Gpx-Track/sitemap.xml

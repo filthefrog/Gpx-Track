@@ -26,3 +26,5 @@ for (const f of files) {
   if (after !== before) writeFileSync(url, after);
 }
 console.log(`Versione ${version}`);
+// guide, privacy e altre pagine di contenuto usano la stessa versione per sito.css
+await import('./pagine.mjs');

@@ -22,10 +22,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041326">
+  <link rel="stylesheet" href="css/style.css?v=202610041332">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041326"></script>
+  <script type="module" src="js/app.js?v=202610041332"></script>
 </head>
 <body>
   <div class="app">
@@ -127,7 +127,9 @@
             <label><input type="radio" name="highways" value="0.5"><span>Se serve</span></label>
             <label><input type="radio" name="highways" value="1" checked><span>Normale</span></label>
           </div>
-          <label class="switch"><input type="checkbox" id="opt-unpaved" checked><span>Evita sterrato</span></label>
+          <label class="switch"><input type="checkbox" id="opt-unpaved" checked><span>Solo strade asfaltate</span></label>
+          <p class="hint" id="unpaved-hint" hidden>Il calcolo può usare anche strade bianche e carrarecce, se servono.
+            OpenStreetMap non sempre dice se sono percorribili in moto: guarda il percorso prima di partire.</p>
           <label class="switch"><input type="checkbox" id="opt-tolls"><span>Evita pedaggi</span></label>
           <label class="switch"><input type="checkbox" id="opt-ferries"><span>Evita traghetti</span></label>
         </div>
@@ -231,11 +233,26 @@
           <p>La tua posizione GPS si usa solo quando tocchi «La mia posizione» e non viene salvata altrove.
             L'indirizzo della pagina non contiene il giro, così non finisce nella cronologia del browser:
             il link si crea solo con «Condividi link».</p>
+          <p><a href="privacy.html">Informativa completa su privacy e cookie</a></p>
           <button type="button" class="btn secondary wide danger" id="btn-wipe">Cancella tutti i miei dati</button>
         </div>
       </details>
 
+      <section class="card donate-card" id="donate-card" hidden>
+        <div>
+          <strong>Tracce Moto è gratuito</strong>
+          <p class="hint">Niente account e niente pubblicità qui. Se ti è utile, puoi offrirmi un caffè.</p>
+        </div>
+        <a class="btn" id="btn-donate" target="_blank" rel="noopener">Offrimi un caffè</a>
+      </section>
+
       <footer class="foot">
+        <nav class="foot-links" aria-label="Sito">
+          <a href="guide/">Guide</a>
+          <a href="sostieni.html">Sostieni</a>
+          <a href="info.html">Chi siamo</a>
+          <a href="privacy.html">Privacy</a>
+        </nav>
         Percorsi <a href="https://valhalla.github.io/valhalla/" target="_blank" rel="noopener">Valhalla</a> (FOSSGIS) ·
         ricerca <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> ·
         dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.
@@ -247,64 +264,14 @@
           <strong id="dock-km">–</strong>
           <span id="dock-time">Aggiungi le tappe</span>
         </div>
-        <button type="button" class="btn go" id="btn-go" disabled aria-label="Avvia la navigazione">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 17-7-4-7 4z"/></svg>Vai</button>
+        <button type="button" class="btn go" id="btn-maps" disabled aria-label="Apri in Google Maps o Apple Mappe">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></svg>Mappe</button>
         <button type="button" class="btn" id="btn-tbt-dl" disabled>GPX</button>
         <button type="button" class="btn secondary icon" id="btn-tbt-share" disabled aria-label="Invia GPX a un'altra app" title="Invia a…">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
         </button>
       </div>
     </main>
-  </div>
-
-  <!-- schermo di guida -->
-  <div id="nav" class="nav" hidden>
-    <div class="nav-top">
-      <div class="nav-maneuver">
-        <div class="nav-icon" id="nav-icon"></div>
-        <div class="nav-text">
-          <div class="nav-dist" id="nav-dist">–</div>
-          <div class="nav-instr" id="nav-instr"></div>
-        </div>
-      </div>
-      <div class="nav-then" id="nav-then" hidden></div>
-      <div class="nav-banner" id="nav-banner" hidden>
-        <span id="nav-banner-text"></span>
-        <button type="button" class="nav-chip" id="nav-reroute" hidden>Ricalcola</button>
-      </div>
-      <div class="nav-sim" id="nav-sim" hidden>Prova della guida: posizione simulata</div>
-    </div>
-    <div class="nav-bottom">
-      <div class="nav-stats">
-        <div><b id="nav-eta">–</b><span>arrivo</span></div>
-        <div><b id="nav-left-time">–</b><span>tempo</span></div>
-        <div><b id="nav-left-km">–</b><span>mancano</span></div>
-        <div class="nav-speed"><b id="nav-speed">0</b><span>km/h</span></div>
-      </div>
-      <div class="nav-buttons">
-        <button type="button" class="nav-btn exit" id="nav-exit">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span>Esci</span></button>
-        <button type="button" class="nav-btn" id="nav-center">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 17-7-4-7 4z"/></svg><span>Centra</span></button>
-        <button type="button" class="nav-btn" id="nav-overview">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Percorso</span></button>
-        <button type="button" class="nav-btn" id="nav-voice" aria-pressed="true">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg><span>Voce</span></button>
-      </div>
-    </div>
-  </div>
-
-  <!-- scelta prima di partire -->
-  <div id="go-sheet" class="go-sheet" hidden>
-    <div class="go-card">
-      <h2>Si parte?</h2>
-      <p>Lo schermo di guida segue la tua posizione GPS sul percorso, con le indicazioni a voce.
-        Tieni il telefono acceso e in carica: il GPS consuma batteria.</p>
-      <button type="button" class="btn wide" id="go-start">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 17-7-4-7 4z"/></svg>Avvia navigazione</button>
-      <button type="button" class="btn secondary wide" id="go-sim">Prova la guida (simulazione)</button>
-      <button type="button" class="btn ghost wide" id="go-cancel">Annulla</button>
-    </div>
   </div>
 
   <div id="toast" class="toast" role="alert" hidden></div>

@@ -68,22 +68,6 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 - **Verso di marcia**: sul percorso scorrono lentamente delle lineette bianche con qualche freccetta «›» distanziata,
   nella direzione del giro. Le freccette seguono il verso generale della traccia (calcolato su un tratto di ~70 pixel),
   non ogni singola curva, così sui tornanti non girano a scatti. Ferme se sull'iPhone è attivo «Riduci movimento».
-- **Navigazione** (pulsante verde **Vai** nella barra in basso): schermo di guida in stile CarPlay, sempre leggibile:
-  in alto la prossima manovra con freccia grande, distanza e strada, e la manovra dopo; in basso orario di arrivo,
-  tempo e km che mancano, velocità; pulsanti grandi **Esci**, **Centra**, **Percorso** (vista d'insieme), **Voce**.
-  - La posizione GPS viene proiettata sul percorso: la freccia avanza lungo la traccia alla velocità stimata a ogni
-    fotogramma e si riallinea dolcemente quando arriva il dato GPS nuovo, quindi scorre senza scatti; non torna
-    indietro per piccoli errori del GPS e, se il segnale manca, si ferma dopo 4 secondi.
-  - La mappa segue la freccia mostrando più strada davanti; lo zoom si adatta alla velocità. Resta con il nord in alto
-    (la freccia ruota): Leaflet non permette di ruotare la mappa.
-  - Indicazioni a voce in italiano (circa 25 secondi prima e poi alla manovra), schermo sempre acceso dove il
-    browser lo consente.
-  - Oltre 50 m dalla traccia per 3 letture GPS di fila compare «Sei fuori percorso» e il percorso si ricalcola dalla
-    posizione attuale verso le tappe che mancano.
-  - **Prova la guida (simulazione)**: percorre la traccia con un GPS simulato, per provare tutto da casa.
-  - In orizzontale (telefono sul supporto) le indicazioni stanno a sinistra e i comandi in basso a destra.
-  - Limiti: è una web app, quindi con lo schermo spento o l'app in background il GPS si ferma; non è un navigatore
-    certificato: guarda la strada, non lo schermo.
 - **Mappa**: «Stradale (nitida)» (CARTO Voyager, con tile ad alta risoluzione per gli schermi Retina) è quella
   predefinita; restano OpenStreetMap e OpenTopoMap. L'app ricorda la mappa scelta.
 - **Passare da una strada precisa**: tocca la linea del percorso, compare un punto ⊕; trascinalo sulla strada che
@@ -113,8 +97,20 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 - **Annulla / Ripeti** le modifiche alle tappe, **Inverti** il giro, **Apri un file GPX** (tappe da `wpt`/`rtept`,
   oppure punti presi dalla traccia) nella vista «Elenco».
 - **Profilo altimetrico** con dislivello in salita e discesa e quota massima (servizio `/height` di Valhalla).
-- **Mappa «Notte (scura)»**: predefinita con il tema scuro e sempre usata in guida.
+- **Mappa «Notte (scura)»**: predefinita con il tema scuro.
 - **Apri in Google Maps o Apple Mappe**: vedi la sezione qui sotto.
+
+## Sito, annunci e donazioni
+
+Tracce Moto è un pianificatore gratuito. Si sostiene con gli annunci AdSense e le donazioni:
+
+- **Lo strumento** (`index.html`) non ha annunci né cookie: è la regola del progetto, e le norme di AdSense non
+  ammettono annunci su schermate senza contenuti dell'editore.
+- **Le guide** (`guide/`) sono pagine di contenuto utili ai motociclisti (OsmAnd, Whip Live, Google/Apple, formati
+  GPX, giro sui passi): lì compaiono gli annunci, dopo il messaggio di consenso di Google.
+- **Donazioni**: riquadro «Offrimi un caffè» nello strumento e nelle guide, visibile solo se è impostato il link.
+- Tutto si configura in `js/config.js`, poi `npm run versione` rigenera le pagine. Guida passo per passo:
+  [`docs/guadagni.md`](docs/guadagni.md).
 
 ## Google Maps e Apple Mappe
 
@@ -304,15 +300,16 @@ manifest.webmanifest    manifest della PWA (icone, colori, avvio a tutto schermo
 css/style.css           stile mobile first, tema chiaro e scuro, safe area
 js/core.js              funzioni pure: polyline, RDP, inserimento tappe, GPX, roadbook, stato nell'URL
 js/places.js            funzioni pure per i luoghi: coordinate, varianti di ricerca, ordine dei risultati
-js/nav.js               funzioni pure della navigazione: proiezione sulla traccia, freccia fluida, avanzamento
-js/navigation.js        schermo di guida: GPS, voce, ricalcolo, simulazione
+js/config.js            configurazione di annunci AdSense e donazioni (vedi docs/guadagni.md)
+css/sito.css            stile delle pagine di contenuto
+contenuti/*.html        testi di guide, privacy, info e sostieni
+scripts/pagine.mjs      genera guide/, privacy.html, info.html, sostieni.html, sitemap.xml, robots.txt, ads.txt
 js/passes.js            funzioni pure per i passi: versanti dalle strade OSM, passo completo o andata e ritorno
 js/services.js          Valhalla e Nominatim (coda a 1 richiesta al secondo)
 js/legs.js              funzioni pure dei link Google/Apple: punti di forzatura, tratte, URL
 js/app.js               interfaccia
 tests/core.test.mjs     test delle funzioni pure (Node, senza dipendenze)
 tests/places.test.mjs   test della ricerca dei luoghi
-tests/nav.test.mjs      test della navigazione (fluidità della freccia compresa)
 tests/passes.test.mjs   test dei versanti dei passi (rete stradale sintetica)
 tests/legs.test.mjs     test dei link Google Maps / Apple Mappe
 tests/collaudo.mjs      collaudo con i servizi reali

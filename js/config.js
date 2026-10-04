@@ -1,0 +1,18 @@
+// Configurazione del sito: annunci e donazioni.
+// Dopo ogni modifica: `npm run pagine` (rigenera guide, privacy e ads.txt) e `npm run versione`.
+// Finché i campi sono vuoti non compare nessun annuncio e nessun pulsante per le donazioni.
+// Guida passo per passo: docs/guadagni.md
+export const CONFIG = Object.freeze({
+  // Indirizzo pubblico del sito, senza "/" finale (serve per i link canonici e la sitemap)
+  siteUrl: 'https://filthefrog.github.io/Gpx-Track',
+  // ID editore AdSense, es. 'ca-pub-1234567890123456' (AdSense › Account › Informazioni sull'account)
+  adsenseClient: '',
+  // ID delle unità pubblicitarie (AdSense › Annunci › Per unità pubblicitaria). Vuoti = solo annunci automatici.
+  adSlots: { article: '', bottom: '' },
+  // Pagina per le donazioni, es. 'https://ko-fi.com/tuonome' oppure 'https://paypal.me/tuonome'
+  donateUrl: '',
+  // Chi gestisce il sito, per l'informativa privacy (nome e cognome o ragione sociale)
+  owner: '',
+  // Contatto per privacy e segnalazioni: di default le segnalazioni pubbliche su GitHub
+  contactUrl: 'https://github.com/filthefrog/Gpx-Track/issues',
+});

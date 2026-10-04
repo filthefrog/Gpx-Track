@@ -25,12 +25,12 @@ import {
   gpxToStops,
   elevationStats,
   stopShapeIndices,
-} from './core.js?v=202610041326';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041326';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041326';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041326';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041326';
-import { startNavigation } from './navigation.js?v=202610041326';
+} from './core.js?v=202610041332';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041332';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041332';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041332';
+import { CONFIG } from './config.js?v=202610041332';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041332';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -128,13 +128,9 @@ try {
 } catch {
   // memoria del browser non disponibile: mappa secondo il tema
 }
-let currentBase = startLayer;
-let switchingBase = false; // cambio fatto dall'app (guida), da non ricordare come scelta
 const map = L.map('map', { zoomControl: true, layers: [startLayer] }).setView([45.2, 11.5], 6);
 L.control.layers(LAYERS, null, { position: 'topright' }).addTo(map);
 map.on('baselayerchange', (e) => {
-  currentBase = e.layer;
-  if (switchingBase) return;
   try {
     localStorage.setItem(STORAGE_LAYER, e.name);
   } catch {
@@ -1036,7 +1032,7 @@ function prefsSummary() {
   const o = state.options;
   const hw = o.highways === 0 ? 'Senza autostrade' : o.highways === 0.5 ? 'Autostrade se servono' : 'Autostrade sì';
   const parts = o.style === 'scenic' ? ['Panoramica', 'senza autostrade'] : ['Diretta', hw];
-  if (o.avoidUnpaved) parts.push('niente sterrato');
+  parts.push(o.avoidUnpaved ? 'solo asfalto' : 'anche sterrato');
   if (o.avoidTolls) parts.push('niente pedaggi');
   if (o.avoidFerries) parts.push('niente traghetti');
   return parts.join(' · ');
@@ -1069,6 +1065,7 @@ function bindOptions() {
   for (const [sel, key] of Object.entries(toggles)) {
     $(sel).addEventListener('change', (e) => {
       state.options[key] = e.target.checked;
+      $('#unpaved-hint').hidden = state.options.avoidUnpaved;
       changed();
     });
   }
@@ -1091,6 +1088,7 @@ function syncControls() {
   $('#opt-tolls').checked = state.options.avoidTolls;
   $('#opt-ferries').checked = state.options.avoidFerries;
   $('#opt-unpaved').checked = state.options.avoidUnpaved;
+  $('#unpaved-hint').hidden = state.options.avoidUnpaved;
   for (const r of document.querySelectorAll('input[name="highways"]')) r.checked = Number(r.value) === state.options.highways;
   for (const r of document.querySelectorAll('input[name="style"]')) r.checked = r.value === (state.options.style === 'scenic' ? 'scenic' : 'direct');
   syncStyle();
@@ -1455,7 +1453,7 @@ function countKm(el, target) {
 function setDock(mode) {
   $('#dock').classList.toggle('busy', mode === 'busy');
   const ready = mode === 'ready';
-  $('#btn-go').disabled = !ready;
+  $('#btn-maps').disabled = !ready;
   $('#btn-tbt-dl').disabled = !ready;
   $('#btn-tbt-share').disabled = !ready;
   if (ready) {
@@ -1871,61 +1869,19 @@ function renderMapsLinks() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Navigazione
-// ---------------------------------------------------------------------------
-
-let navigation = null;
-
-$('#btn-go').addEventListener('click', () => {
+// la barra in basso porta alla scheda dei link (e la apre)
+$('#btn-maps').addEventListener('click', () => {
   if (!exportReady()) return;
-  $('#go-sheet').hidden = false;
+  setSheet(false);
+  const card = $('#maps-card');
+  card.open = true;
+  card.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
 });
-$('#go-cancel').addEventListener('click', () => ($('#go-sheet').hidden = true));
-$('#go-sheet').addEventListener('click', (e) => {
-  if (e.target.id === 'go-sheet') $('#go-sheet').hidden = true;
-});
-$('#go-start').addEventListener('click', () => beginNavigation(false));
-$('#go-sim').addEventListener('click', () => beginNavigation(true));
 
-function beginNavigation(simulate) {
-  $('#go-sheet').hidden = true;
-  if (!exportReady() || navigation) return;
-  map.closePopup();
-  removeGhost();
-  // in guida la mappa scura stanca meno la vista, come su CarPlay
-  const before = currentBase;
-  if (before !== night) {
-    switchingBase = true;
-    map.removeLayer(before);
-    night.addTo(map);
-    switchingBase = false;
-  }
-  navigation = startNavigation({
-    map,
-    route,
-    // tappe come calcolate (in panoramica ogni tappa chiude una tratta)
-    stops: exportStops().map((s) => ({ ...s, ...(route.scenic ? { type: 'break' } : {}) })),
-    options: state.options,
-    simulate,
-    // dopo un ricalcolo in viaggio si disegna il nuovo percorso
-    drawShape: (shape) => {
-      routeLine.setLatLngs(shape);
-      routeCasing.setLatLngs(shape);
-      routeHit.setLatLngs([]);
-    },
-    onExit: () => {
-      navigation = null;
-      if (before !== night) {
-        switchingBase = true;
-        map.removeLayer(night);
-        before.addTo(map);
-        switchingBase = false;
-      }
-      if (route) drawRoute();
-      setTimeout(fitAll, 120);
-    },
-  });
+// donazioni: il riquadro compare solo se la pagina è configurata (js/config.js)
+if (/^https:\/\//.test(CONFIG.donateUrl)) {
+  $('#btn-donate').href = CONFIG.donateUrl;
+  $('#donate-card').hidden = false;
 }
 
 const exportButtons = {
