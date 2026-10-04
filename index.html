@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Tracce Moto</title>
   <meta name="description" content="Da un elenco di località a un GPX turn by turn strada per strada, per giri in moto.">
-  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#121210" media="(prefers-color-scheme: dark)">
-  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light">
   <!-- schermata Home di iPhone -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Tracce Moto">
   <meta name="format-detection" content="telephone=no">
   <!-- privacy e sicurezza: la pagina parla solo con i servizi che usa e non manda l'indirizzo completo ai siti esterni -->
@@ -22,12 +21,22 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041706">
+  <link rel="stylesheet" href="css/style.css?v=202610041712">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041706"></script>
+  <script type="module" src="js/app.js?v=202610041712"></script>
 </head>
 <body>
+  <header class="site-top">
+    <a class="site-brand" href="./" aria-label="Tracce Moto, pianifica un giro">
+      <img src="icons/icon.svg" alt="" width="28" height="28">Tracce Moto</a>
+    <nav class="site-nav" aria-label="Sito">
+      <a href="./" aria-current="page" class="wide-only">Pianifica</a>
+      <a href="guide/">Guide</a>
+      <a href="sostieni.html" class="wide-only">Sostieni</a>
+      <a href="info.html" class="wide-only">Chi siamo</a>
+    </nav>
+  </header>
   <div class="app">
     <div class="map-wrap">
       <div id="map" role="application" aria-label="Mappa: tocca per aggiungere un punto"></div>
@@ -49,9 +58,7 @@
       <button type="button" class="sheet-handle mobile-only" id="sheet-handle" aria-expanded="true"
               aria-label="Abbassa il pannello e ingrandisci la mappa"><span></span></button>
       <header class="top">
-        <img class="logo" src="icons/icon.svg" alt="" width="42" height="42">
         <div class="top-text">
-          <div class="brand">Tracce Moto</div>
           <input id="trip-name" class="trip-name" type="text" autocomplete="off" maxlength="80"
                  placeholder="Nuovo giro" aria-label="Nome del giro">
         </div>

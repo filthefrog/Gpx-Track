@@ -25,12 +25,12 @@ import {
   gpxToStops,
   elevationStats,
   stopShapeIndices,
-} from './core.js?v=202610041706';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041706';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041706';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041706';
-import { CONFIG } from './config.js?v=202610041706';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041706';
+} from './core.js?v=202610041712';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041712';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041712';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041712';
+import { CONFIG } from './config.js?v=202610041712';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041712';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -121,8 +121,7 @@ const night = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_al
 
 const LAYERS = { 'Stradale (nitida)': voyager, 'Notte (scura)': night, OpenStreetMap: osm, 'Topografica (OpenTopoMap)': topo };
 const STORAGE_LAYER = 'tracceMoto.mappa';
-const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-let startLayer = prefersDark ? night : voyager;
+let startLayer = voyager;
 try {
   startLayer = LAYERS[localStorage.getItem(STORAGE_LAYER)] || startLayer;
 } catch {
