@@ -1,4 +1,4 @@
-// Tracce Moto — interfaccia: mappa, tappe, calcolo, export e salvataggi.
+// Tracce Moto — interfaccia: elenco di tappe, mappa, calcolo ed export.
 import {
   DEFAULT_OPTIONS,
   bestInsertionIndex,
@@ -18,6 +18,7 @@ import {
   defaultTripName,
   explainValhallaError,
 } from './core.js';
+import { snapsToRoad, splitPlaces } from './places.js';
 import { fetchRoute, searchPlaces, reverseGeocode } from './services.js';
 
 const L = window.L;
@@ -26,6 +27,11 @@ const STORAGE_TRIPS = 'tracceMoto.giri';
 const STORAGE_CURRENT = 'tracceMoto.corrente';
 const RECALC_DELAY = 600;
 
+const ICON = {
+  handle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h14M5 15h14"/></svg>',
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+
 // ---------------------------------------------------------------------------
 // Stato
 // ---------------------------------------------------------------------------
@@ -33,28 +39,41 @@ const RECALC_DELAY = 600;
 let nextId = 1;
 const state = {
   name: '',
-  stops: [], // { id, lat, lon, name, type: 'break'|'through', custom }
+  // { id, query, name, context, kind, lat, lon, type, snap, status, message, candidates, showAlts }
+  // status: empty | searching | ok | notfound
+  stops: [],
   loop: false,
   options: { ...DEFAULT_OPTIONS },
-  insertMode: 'end',
 };
 
-let route = null; // { parsed, costing, warning, key }
+let route = null; // { parsed, costing, warning, stops, loop }
 let routeKey = '';
 let recalcTimer = null;
 let recalcAbort = null;
 let recalcSeq = 0;
 
-function makeStop(lat, lon, name, extra = {}) {
-  return { id: nextId++, lat, lon, name: name || coordLabel(lat, lon), type: 'break', custom: false, ...extra };
+function emptyStop() {
+  return { id: nextId++, query: '', name: '', context: '', kind: '', lat: null, lon: null, type: 'break', snap: false, status: 'empty', message: '', candidates: [], showAlts: false, draft: null };
+}
+
+function placedStop(lat, lon, name, extra = {}) {
+  return { ...emptyStop(), lat, lon, name: name || coordLabel(lat, lon), query: name || '', status: 'ok', ...extra };
 }
 
 function coordLabel(lat, lon) {
   return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 }
 
+const isPlaced = (s) => s.status === 'ok' && s.lat != null;
+const placed = () => state.stops.filter(isPlaced);
+
 function tripName() {
-  return state.name.trim() || defaultTripName(state.stops, state.loop);
+  return state.name.trim() || defaultTripName(placed(), state.loop);
+}
+
+/** Tiene almeno due righe (partenza e arrivo). */
+function ensureRows() {
+  while (state.stops.length < 2) state.stops.push(emptyStop());
 }
 
 // ---------------------------------------------------------------------------
@@ -78,115 +97,136 @@ const map = L.map('map', { zoomControl: true, layers: [osm] }).setView([45.2, 11
 L.control.layers({ OpenStreetMap: osm, OpenTopoMap: topo }, null, { position: 'topright' }).addTo(map);
 L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-const routeCasing = L.polyline([], { color: getCss('--route-casing'), weight: 9, opacity: 0.9, interactive: false }).addTo(map);
-const routeLine = L.polyline([], { color: getCss('--route'), weight: 5, opacity: 0.95, interactive: false }).addTo(map);
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0a6ccf';
+const routeCasing = L.polyline([], { color: cssVar('--route-casing'), weight: 9, opacity: 0.9, interactive: false }).addTo(map);
+const routeLine = L.polyline([], { color: cssVar('--route'), weight: 5, opacity: 0.95, interactive: false }).addTo(map);
 const markersLayer = L.layerGroup().addTo(map);
 let maneuverMarker = null;
 let locateMarker = null;
 
-function getCss(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0a6ccf';
-}
-
-function stopRole(i) {
+/** Ruolo della tappa: partenza, arrivo, sosta o passaggio (conta solo le tappe trovate). */
+function roleOf(stop) {
+  const list = placed();
+  const i = list.indexOf(stop);
   if (i === 0) return 'start';
-  if (i === state.stops.length - 1 && !state.loop && state.stops.length > 1) return 'end';
-  return state.stops[i].type === 'through' ? 'through' : 'break';
-}
-
-function stopIcon(i) {
-  const role = stopRole(i);
-  const size = role === 'through' ? 26 : 32;
-  return L.divIcon({
-    className: '',
-    html: `<div class="pin ${role}"><span>${i + 1}</span></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size + 2],
-    popupAnchor: [0, -size],
-  });
+  if (i === list.length - 1 && i > 0 && !state.loop) return 'end';
+  if (i < 0) return 'empty';
+  return stop.type === 'through' ? 'through' : 'break';
 }
 
 function renderMarkers() {
   markersLayer.clearLayers();
   state.stops.forEach((s, i) => {
+    if (!isPlaced(s)) return;
+    const role = roleOf(s);
+    const size = role === 'through' ? 24 : 30;
     const m = L.marker([s.lat, s.lon], {
-      icon: stopIcon(i),
+      icon: L.divIcon({ className: '', html: `<div class="pin ${role}"><span>${i + 1}</span></div>`, iconSize: [size, size], iconAnchor: [size / 2, size + 2] }),
       draggable: true,
       autoPan: true,
       title: `${i + 1}. ${s.name}`,
       zIndexOffset: 1000 - i,
     });
-    m.on('dragend', () => {
+    m.on('dragend', async () => {
       const { lat, lng } = m.getLatLng();
-      s.lat = lat;
-      s.lon = lng;
-      if (!s.custom) {
-        s.name = coordLabel(lat, lng);
-        nameFromMap(s);
-      }
+      Object.assign(s, { lat, lon: lng, snap: false, name: coordLabel(lat, lng), query: coordLabel(lat, lng), context: 'Punto spostato a mano', kind: '', candidates: [] });
       changed();
+      const place = await reverseGeocode(lat, lng).catch(() => null);
+      if (place && state.stops.includes(s) && s.lat === lat) {
+        Object.assign(s, { name: place.name, query: place.name, context: place.context });
+        changed({ recalc: false });
+      }
     });
-    m.on('click', () => {
-      const row = document.querySelector(`[data-stop-id="${s.id}"]`);
-      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
+    m.on('click', () => focusRow(s));
     markersLayer.addLayer(m);
   });
 }
 
-async function nameFromMap(stop) {
-  try {
-    const name = await reverseGeocode(stop.lat, stop.lon);
-    // il punto potrebbe essere stato rinominato o eliminato nel frattempo
-    if (name && !stop.custom && state.stops.includes(stop)) {
-      stop.name = name;
-      renderStops();
-      renderMarkers();
-      persist();
-    }
-  } catch {
-    // il nome resta quello con le coordinate: non è un errore bloccante
-  }
+function focusRow(stop) {
+  const row = document.querySelector(`[data-id="${stop.id}"]`);
+  if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-// Tocco sulla mappa: popup con nome e pulsante "Aggiungi"
+// Tocco sulla mappa: popup con il nome del punto e i pulsanti per aggiungerlo
 map.on('click', (e) => {
   const { lat, lng } = e.latlng;
   const box = document.createElement('div');
   box.className = 'pop';
-  box.innerHTML = `
-    <div class="pop-name">Cerco il nome…</div>
-    <div class="pop-coords">${coordLabel(lat, lng)}</div>
-    <button type="button" class="btn"></button>`;
-  const btn = box.querySelector('button');
-  btn.textContent = addButtonLabel();
-  let name = null;
-  const popup = L.popup({ maxWidth: 260, minWidth: 220 }).setLatLng(e.latlng).setContent(box).openOn(map);
-  btn.addEventListener('click', () => {
-    const stop = makeStop(lat, lng, name);
-    addStop(stop);
+  box.innerHTML = '<div class="pop-name">Cerco il nome…</div><div class="pop-ctx"></div><div class="pop-actions"></div>';
+  box.querySelector('.pop-ctx').textContent = coordLabel(lat, lng);
+  let place = null;
+  const popup = L.popup({ maxWidth: 270, minWidth: 230 }).setLatLng(e.latlng).setContent(box).openOn(map);
+
+  const add = (where) => {
+    const stop = placedStop(lat, lng, place ? place.name : null, { context: place ? place.context : '' });
+    insertStop(stop, where);
     map.closePopup(popup);
-    if (!name) nameFromMap(stop); // il nome non era ancora arrivato
-  });
+    if (!place) {
+      reverseGeocode(lat, lng)
+        .then((p) => {
+          if (p && state.stops.includes(stop)) {
+            Object.assign(stop, { name: p.name, query: p.name, context: p.context });
+            changed({ recalc: false });
+          }
+        })
+        .catch(() => {});
+    }
+  };
+  const actions = box.querySelector('.pop-actions');
+  const button = (label, where, secondary) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn${secondary ? ' secondary' : ''}`;
+    b.textContent = label;
+    b.addEventListener('click', () => add(where));
+    actions.appendChild(b);
+  };
+  const firstEmpty = state.stops.findIndex((s) => s.status === 'empty');
+  const n = placed().length;
+  if (firstEmpty >= 0) button(n === 0 ? 'Usa come partenza' : `Usa come tappa ${firstEmpty + 1}`, 'empty');
+  else button(state.loop ? 'Aggiungi in fondo' : 'Aggiungi come arrivo', 'end');
+  if (n >= 2) button('Inserisci tra le tappe', 'middle', true);
+
   reverseGeocode(lat, lng)
-    .then((n) => {
-      name = n;
-      box.querySelector('.pop-name').textContent = n || 'Punto sulla mappa';
+    .then((p) => {
+      place = p;
+      box.querySelector('.pop-name').textContent = p ? p.name : 'Punto sulla mappa';
+      if (p && p.context) box.querySelector('.pop-ctx').textContent = p.context;
     })
     .catch(() => {
       box.querySelector('.pop-name').textContent = 'Punto sulla mappa';
     });
 });
 
-function addButtonLabel() {
-  if (state.stops.length === 0) return 'Aggiungi come partenza';
-  if (state.insertMode === 'middle' && state.stops.length >= 2) return 'Aggiungi come intermedia';
-  return state.stops.length === 1 && !state.loop ? 'Aggiungi come arrivo' : 'Aggiungi in fondo';
+function insertStop(stop, where) {
+  if (where === 'empty') {
+    const i = state.stops.findIndex((s) => s.status === 'empty');
+    if (i >= 0) {
+      state.stops[i] = { ...stop, id: state.stops[i].id };
+      changed();
+      return;
+    }
+  }
+  if (where === 'middle') {
+    // posizione che allunga meno il giro, calcolata sulle tappe trovate
+    const list = placed();
+    const k = bestInsertionIndex(list.map((s) => [s.lat, s.lon]), [stop.lat, stop.lon], state.loop);
+    const anchor = list[k];
+    const idx = anchor ? state.stops.indexOf(anchor) : state.stops.length;
+    state.stops.splice(idx, 0, stop);
+    toast(`Inserita come tappa ${idx + 1}.`);
+  } else {
+    // in fondo, prima delle righe vuote finali
+    let idx = state.stops.length;
+    while (idx > 0 && state.stops[idx - 1].status === 'empty') idx--;
+    state.stops.splice(idx, 0, stop);
+  }
+  changed();
 }
 
 function fitAll() {
-  const pts = route ? route.parsed.shape : state.stops.map((s) => [s.lat, s.lon]);
-  if (pts.length === 1) map.setView(pts[0], 12);
+  const pts = route ? route.parsed.shape : placed().map((s) => [s.lat, s.lon]);
+  if (pts.length === 1) map.setView(pts[0], 11);
   else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
 }
 
@@ -198,210 +238,373 @@ $('#btn-expand').addEventListener('click', (e) => {
   setTimeout(() => map.invalidateSize(), 250);
 });
 
-$('#btn-locate').addEventListener('click', () => {
-  if (!navigator.geolocation) return toast('Questo browser non fornisce la posizione.', true);
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const ll = [pos.coords.latitude, pos.coords.longitude];
-      if (locateMarker) locateMarker.remove();
-      locateMarker = L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#0a84ff', fillOpacity: 1 }).addTo(map);
-      map.setView(ll, 13);
-    },
-    () => toast('Posizione non disponibile. Su iPhone consentila in Impostazioni › Privacy › Localizzazione › Safari.', true),
-    { enableHighAccuracy: true, timeout: 10000 },
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Tappe
-// ---------------------------------------------------------------------------
-
-function addStop(stop) {
-  const n = state.stops.length;
-  if (state.insertMode === 'middle' && n >= 2) {
-    const idx = bestInsertionIndex(
-      state.stops.map((s) => [s.lat, s.lon]),
-      [stop.lat, stop.lon],
-      state.loop,
+function locate() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Questo browser non fornisce la posizione.'));
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve([pos.coords.latitude, pos.coords.longitude]),
+      () => reject(new Error('Posizione non disponibile. Su iPhone consentila in Impostazioni › Privacy › Localizzazione › Safari.')),
+      { enableHighAccuracy: true, timeout: 10000 },
     );
-    state.stops.splice(idx, 0, stop);
-    toast(`Aggiunta come tappa ${idx + 1}.`);
-  } else {
-    state.stops.push(stop);
-  }
-  changed();
-  if (state.stops.length <= 2) fitAll();
-}
-
-function moveStop(i, delta) {
-  const j = i + delta;
-  if (j < 0 || j >= state.stops.length) return;
-  [state.stops[i], state.stops[j]] = [state.stops[j], state.stops[i]];
-  changed();
-}
-
-function removeStop(i) {
-  state.stops.splice(i, 1);
-  changed();
-}
-
-function renderStops() {
-  const list = $('#stops');
-  list.textContent = '';
-  $('#stops-empty').hidden = state.stops.length > 0;
-  state.stops.forEach((s, i) => {
-    const role = stopRole(i);
-    const li = document.createElement('li');
-    li.className = 'stop';
-    li.dataset.stopId = s.id;
-    const roleText =
-      role === 'start' ? 'Partenza' : role === 'end' ? 'Arrivo' : state.loop && i === state.stops.length - 1 && i > 0 ? 'Ultima tappa prima del ritorno' : 'Tappa intermedia';
-    const canType = role === 'break' || role === 'through';
-    li.innerHTML = `
-      <div class="stop-main">
-        <span class="badge ${role}" aria-hidden="true">${i + 1}</span>
-        <input type="text" aria-label="Nome della tappa ${i + 1}" maxlength="80">
-        <button type="button" class="icon-btn" data-act="up" aria-label="Sposta su" ${i === 0 ? 'disabled' : ''}>↑</button>
-        <button type="button" class="icon-btn" data-act="down" aria-label="Sposta giù" ${i === state.stops.length - 1 ? 'disabled' : ''}>↓</button>
-        <button type="button" class="icon-btn del" data-act="del" aria-label="Elimina tappa">✕</button>
-      </div>
-      <div class="stop-tools">
-        ${
-          canType
-            ? `<div class="segmented" role="radiogroup" aria-label="Tipo della tappa ${i + 1}">
-                <label><input type="radio" name="type-${s.id}" value="break" ${s.type !== 'through' ? 'checked' : ''}><span>Sosta</span></label>
-                <label><input type="radio" name="type-${s.id}" value="through" ${s.type === 'through' ? 'checked' : ''}><span>Passaggio</span></label>
-              </div>`
-            : `<span class="stop-role">${roleText}</span>`
-        }
-      </div>`;
-    const input = li.querySelector('input[type="text"]');
-    input.value = s.name;
-    input.addEventListener('change', () => {
-      const v = input.value.trim();
-      if (!v) {
-        input.value = s.name;
-        return;
-      }
-      s.name = v;
-      s.custom = true;
-      changed({ recalc: false });
-    });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') input.blur();
-    });
-    li.querySelector('[data-act="up"]').addEventListener('click', () => moveStop(i, -1));
-    li.querySelector('[data-act="down"]').addEventListener('click', () => moveStop(i, 1));
-    li.querySelector('[data-act="del"]').addEventListener('click', () => removeStop(i));
-    li.querySelectorAll(`input[name="type-${s.id}"]`).forEach((r) =>
-      r.addEventListener('change', () => {
-        s.type = r.value;
-        changed();
-      }),
-    );
-    list.appendChild(li);
   });
 }
 
-$('#btn-clear').addEventListener('click', () => {
-  if (!state.stops.length) return;
-  if (!confirm('Eliminare tutte le tappe?')) return;
+$('#btn-locate').addEventListener('click', async () => {
+  try {
+    const ll = await locate();
+    if (locateMarker) locateMarker.remove();
+    locateMarker = L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#0a84ff', fillOpacity: 1 }).addTo(map);
+    map.setView(ll, 13);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Elenco delle tappe
+// ---------------------------------------------------------------------------
+
+function placeholderFor(i) {
+  if (i === 0) return 'Partenza';
+  // una riga vuota dopo partenza e arrivo già scelti serve solo ad allungare il giro
+  const placedBefore = state.stops.slice(0, i).filter(isPlaced).length;
+  if (placedBefore >= 2) return 'Altra tappa (facoltativa)';
+  if (i === state.stops.length - 1 && !state.loop) return 'Arrivo';
+  return `Tappa ${i + 1}`;
+}
+
+function renderStops() {
+  ensureRows();
+  const list = $('#stops');
+  const focused = document.activeElement && document.activeElement.closest('.stop');
+  const focusId = focused ? Number(focused.dataset.id) : null;
+  const caret = focused ? document.activeElement.selectionStart : null;
+  list.textContent = '';
+  state.stops.forEach((s, i) => list.appendChild(stopRow(s, i)));
+  if (focusId) {
+    const input = list.querySelector(`[data-id="${focusId}"] .stop-input`);
+    if (input) {
+      input.focus({ preventScroll: true });
+      if (caret != null) input.setSelectionRange(caret, caret);
+    }
+  }
+}
+
+function stopRow(s, i) {
+  const li = document.createElement('li');
+  li.className = `stop ${s.status}`;
+  li.dataset.id = s.id;
+  const role = roleOf(s);
+  li.innerHTML = `
+    <span class="badge ${role}" aria-hidden="true">${i + 1}</span>
+    <div class="stop-body">
+      <input class="stop-input" type="text" enterkeyhint="${i === state.stops.length - 1 ? 'next' : 'search'}"
+             autocomplete="off" autocorrect="off" spellcheck="false">
+      <div class="stop-meta"></div>
+    </div>
+    <div class="stop-tools">
+      <button type="button" class="icon-btn handle" aria-label="Trascina per spostare la tappa">${ICON.handle}</button>
+      <button type="button" class="icon-btn del" aria-label="Elimina la tappa">${ICON.close}</button>
+    </div>`;
+  const input = li.querySelector('.stop-input');
+  // la bozza (testo scritto ma non ancora confermato) sopravvive ai ridisegni
+  input.value = s.draft ?? (s.status === 'ok' ? s.name : s.query);
+  input.placeholder = placeholderFor(i);
+  input.setAttribute('aria-label', `Tappa ${i + 1}: ${placeholderFor(i)}`);
+
+  input.addEventListener('input', () => {
+    s.draft = input.value;
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    // Invio passa alla riga dopo; in fondo all'elenco ne apre una nuova.
+    // Il fuoco si sposta subito, dentro il gesto, così la tastiera di iPhone resta aperta.
+    const value = input.value;
+    const idx = state.stops.indexOf(s);
+    let target = state.stops[idx + 1];
+    if (!target && value.trim()) {
+      target = emptyStop();
+      state.stops.push(target);
+    }
+    commit(s, value);
+    if (target) {
+      renderStops();
+      focusInput(target);
+    } else {
+      input.blur();
+    }
+  });
+  input.addEventListener('change', () => commit(s, input.value));
+  input.addEventListener('blur', () => {
+    setTimeout(() => {
+      const active = document.activeElement && document.activeElement.closest('.stop');
+      if (s.status === 'empty' && !s.draft && state.stops.length > 2 && state.stops.includes(s) && (!active || Number(active.dataset.id) !== s.id)) {
+        state.stops.splice(state.stops.indexOf(s), 1);
+        changed({ recalc: false });
+      }
+    }, 200);
+  });
+  input.addEventListener('paste', (e) => {
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    const parts = splitPlaces(text);
+    if (parts.length < 2) return;
+    e.preventDefault();
+    pasteList(s, parts);
+  });
+
+  li.querySelector('.del').addEventListener('click', () => removeStop(s));
+  enableDrag(li.querySelector('.handle'), li);
+  renderMeta(li.querySelector('.stop-meta'), s, i, role);
+  return li;
+}
+
+function focusInput(stop) {
+  const input = document.querySelector(`[data-id="${stop.id}"] .stop-input`);
+  if (input) input.focus();
+}
+
+function renderMeta(meta, s, i, role) {
+  meta.textContent = '';
+  const span = (cls, text) => {
+    const el = document.createElement('span');
+    if (cls) el.className = cls;
+    el.textContent = text;
+    meta.appendChild(el);
+    return el;
+  };
+  if (s.status === 'searching') {
+    span('spinner', '');
+    span('', 'Cerco…');
+    return;
+  }
+  if (s.status === 'notfound') {
+    span('err', s.message);
+    return;
+  }
+  if (s.status === 'empty') {
+    if (i === 0 && !placed().length) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'link-btn';
+      b.textContent = 'Usa la mia posizione';
+      b.addEventListener('click', () => useMyPosition(s));
+      meta.appendChild(b);
+    }
+    return;
+  }
+  if (s.kind) span('kind', s.kind);
+  if (s.context) span('ctx', s.context);
+  if (role === 'break' || role === 'through') {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `chip ${role}`;
+    chip.textContent = role === 'through' ? 'Passaggio' : 'Sosta';
+    chip.title =
+      role === 'through'
+        ? 'Il percorso ci passa senza fermarsi né fare inversioni. Tocca per renderla una sosta.'
+        : 'Il percorso si ferma qui e ne riparte. Tocca per renderla un semplice passaggio.';
+    chip.addEventListener('click', () => {
+      s.type = s.type === 'through' ? 'break' : 'through';
+      changed();
+    });
+    meta.appendChild(chip);
+  }
+  if (s.candidates.length > 1) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'link-btn';
+    b.textContent = s.showAlts ? 'Chiudi' : `Non è questo? (${s.candidates.length - 1})`;
+    b.addEventListener('click', () => {
+      s.showAlts = !s.showAlts;
+      renderStops();
+    });
+    meta.appendChild(b);
+    if (s.showAlts) meta.after(altList(s));
+  }
+}
+
+function altList(s) {
+  const ul = document.createElement('ul');
+  ul.className = 'alts';
+  for (const c of s.candidates) {
+    const li = document.createElement('li');
+    if (c.lat === s.lat && c.lon === s.lon) li.className = 'current';
+    li.innerHTML = '<div class="a-name"></div><div class="a-ctx"></div>';
+    li.querySelector('.a-name').textContent = c.name;
+    li.querySelector('.a-ctx').textContent = [c.kind, c.context].filter(Boolean).join(' · ');
+    li.addEventListener('click', () => {
+      applyCandidate(s, c);
+      s.showAlts = false;
+      changed();
+      map.setView([c.lat, c.lon], Math.max(map.getZoom(), 10));
+    });
+    ul.appendChild(li);
+  }
+  return ul;
+}
+
+function applyCandidate(s, c) {
+  Object.assign(s, {
+    lat: c.lat,
+    lon: c.lon,
+    name: c.name,
+    query: c.name,
+    context: c.context,
+    kind: c.kind,
+    snap: snapsToRoad(c.category),
+    status: 'ok',
+    message: '',
+  });
+}
+
+/** Coordinate della tappa trovata più vicina prima (o dopo) di questa: aiuta a scegliere tra omonimi. */
+function nearPoint(stop) {
+  const i = state.stops.indexOf(stop);
+  for (let k = i - 1; k >= 0; k--) if (isPlaced(state.stops[k])) return [state.stops[k].lat, state.stops[k].lon];
+  for (let k = i + 1; k < state.stops.length; k++) if (isPlaced(state.stops[k])) return [state.stops[k].lat, state.stops[k].lon];
+  return null;
+}
+
+async function commit(stop, text) {
+  stop.draft = null;
+  const q = String(text || '').trim();
+  if (stop.status === 'ok' && q === stop.name) return; // niente di cambiato
+  if (stop.status === 'searching' && q === stop.query) return;
+  if (!q) {
+    Object.assign(stop, emptyStop(), { id: stop.id, type: stop.type });
+    changed();
+    return;
+  }
+  const parts = splitPlaces(q);
+  if (parts.length > 1) return pasteList(stop, parts);
+  await resolveStop(stop, q);
+}
+
+async function resolveStop(stop, q) {
+  Object.assign(stop, { query: q, status: 'searching', message: '', candidates: [], showAlts: false, lat: null, lon: null });
+  changed();
+  try {
+    const found = await searchPlaces(q, { near: nearPoint(stop) });
+    if (!state.stops.includes(stop) || stop.query !== q) return; // la riga è cambiata nel frattempo
+    if (!found.length) {
+      Object.assign(stop, { status: 'notfound', message: `«${q}» non trovato. Controlla il nome o aggiungi comune o provincia (es. «Gavia, Sondrio»).` });
+    } else {
+      applyCandidate(stop, found[0]);
+      stop.candidates = found;
+    }
+  } catch (err) {
+    if (!state.stops.includes(stop)) return;
+    Object.assign(stop, { status: 'notfound', message: err.message });
+  }
+  changed();
+  if (isPlaced(stop) && placed().length === 1) map.setView([stop.lat, stop.lon], 10);
+}
+
+/** Un elenco incollato in una riga diventa più righe, cercate in ordine. */
+async function pasteList(stop, parts) {
+  const i = state.stops.indexOf(stop);
+  const rows = parts.map((p) => ({ ...emptyStop(), query: p }));
+  // la riga di partenza e le righe vuote subito dopo vengono sostituite
+  let end = i + 1;
+  while (end < state.stops.length && state.stops[end].status === 'empty') end++;
+  state.stops.splice(i, end - i, ...rows);
+  changed();
+  for (const r of rows) {
+    if (!state.stops.includes(r)) continue;
+    await resolveStop(r, r.query);
+  }
+  fitAll();
+}
+
+async function useMyPosition(stop) {
+  try {
+    Object.assign(stop, { status: 'searching', query: 'La mia posizione' });
+    changed({ recalc: false });
+    const [lat, lon] = await locate();
+    const place = await reverseGeocode(lat, lon).catch(() => null);
+    Object.assign(stop, placedStop(lat, lon, place ? place.name : 'La mia posizione', { context: place ? place.context : '', kind: 'Posizione attuale' }), { id: stop.id });
+    changed();
+    map.setView([lat, lon], 11);
+  } catch (err) {
+    Object.assign(stop, { ...emptyStop(), id: stop.id });
+    changed({ recalc: false });
+    toast(err.message, true);
+  }
+}
+
+function removeStop(stop) {
+  const i = state.stops.indexOf(stop);
+  if (i < 0) return;
+  if (state.stops.length <= 2) state.stops[i] = emptyStop();
+  else state.stops.splice(i, 1);
+  changed();
+}
+
+/** Riordino trascinando la maniglia (mouse e dita). */
+function enableDrag(handle, li) {
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const list = li.parentNode;
+    li.classList.add('dragging');
+    const grab = e.clientY - li.getBoundingClientRect().top;
+    // si spostano le righe vicine, mai quella trascinata: se esce dal DOM il browser perde il dito
+    const move = (ev) => {
+      const y = ev.clientY;
+      const prev = li.previousElementSibling;
+      const next = li.nextElementSibling;
+      if (prev && y < prev.getBoundingClientRect().top + prev.offsetHeight / 2) list.insertBefore(prev, li.nextSibling);
+      else if (next && y > next.getBoundingClientRect().top + next.offsetHeight / 2) list.insertBefore(next, li);
+      li.style.transform = 'none';
+      const natural = li.getBoundingClientRect().top;
+      li.style.transform = `translateY(${y - grab - natural}px)`;
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      li.classList.remove('dragging');
+      li.style.transform = '';
+      const order = [...list.children].map((c) => Number(c.dataset.id));
+      const before = state.stops.map((s) => s.id).join();
+      state.stops.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      if (state.stops.map((s) => s.id).join() !== before) changed();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
+}
+
+$('#btn-add').addEventListener('click', () => {
+  const row = emptyStop();
+  state.stops.push(row);
+  renderStops();
+  focusInput(row);
+});
+
+$('#btn-new').addEventListener('click', () => {
+  if (placed().length && !confirm('Iniziare un nuovo giro? Le tappe attuali verranno cancellate (salva prima il giro se ti serve).')) return;
   state.stops = [];
   state.name = '';
   $('#trip-name').value = '';
   changed();
+  focusInput(state.stops[0]);
 });
-
-// ---------------------------------------------------------------------------
-// Ricerca
-// ---------------------------------------------------------------------------
-
-$('#search-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const input = $('#search-input');
-  const q = input.value.trim();
-  const box = $('#search-results');
-  if (q.length < 2) return;
-  input.blur(); // chiude la tastiera di iPhone
-  box.hidden = false;
-  box.innerHTML = '<li class="empty">Cerco…</li>';
-  try {
-    const b = map.getBounds();
-    const results = await searchPlaces(q, [b.getWest(), b.getNorth(), b.getEast(), b.getSouth()].map((v) => v.toFixed(4)));
-    box.textContent = '';
-    if (!results.length) {
-      box.innerHTML = '<li class="empty">Nessun risultato. Prova ad aggiungere la provincia o il comune (es. «Passo Gavia, Valfurva»).</li>';
-      return;
-    }
-    for (const r of results) {
-      const li = document.createElement('li');
-      li.innerHTML = '<div class="r-text"><div class="r-name"></div><div class="r-detail"></div></div><button type="button" class="btn small">Aggiungi</button>';
-      li.querySelector('.r-name').textContent = r.name;
-      li.querySelector('.r-detail').textContent = r.detail;
-      li.querySelector('button').addEventListener('click', () => {
-        addStop(makeStop(r.lat, r.lon, r.name));
-        box.hidden = true;
-        input.value = '';
-        map.setView([r.lat, r.lon], Math.max(map.getZoom(), 9));
-      });
-      li.querySelector('.r-text').addEventListener('click', () => map.setView([r.lat, r.lon], 13));
-      box.appendChild(li);
-    }
-  } catch (err) {
-    box.innerHTML = '';
-    const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = err.message;
-    box.appendChild(li);
-  }
-});
-
-// Giro dalle località: una per riga, cercate in ordine (la coda rispetta 1 richiesta al secondo)
-$('#quick-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const names = $('#quick-input')
-    .value.split(/\n|;/)
-    .map((x) => x.trim())
-    .filter(Boolean);
-  if (names.length < 2) return toast('Scrivi almeno due località, una per riga (partenza e arrivo).', true);
-  const btn = $('#quick-btn');
-  btn.disabled = true;
-  const found = [];
-  const missing = [];
-  try {
-    for (let i = 0; i < names.length; i++) {
-      btn.textContent = `Cerco ${i + 1} di ${names.length}…`;
-      const res = await searchPlaces(names[i]);
-      if (res[0]) found.push(makeStop(res[0].lat, res[0].lon, res[0].name));
-      else missing.push(names[i]);
-    }
-  } catch (err) {
-    toast(err.message, true);
-    return;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Calcola il percorso';
-  }
-  if (missing.length) {
-    toast(`Non trovate: ${missing.join(', ')}. Aggiungi la provincia (es. «Gavia, Sondrio») e riprova.`, true);
-    return;
-  }
-  state.stops = found;
-  changed();
-  fitAll();
-  $('#result-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-
-document.querySelectorAll('input[name="insert-mode"]').forEach((r) =>
-  r.addEventListener('change', () => {
-    state.insertMode = r.value;
-    persist();
-  }),
-);
 
 // ---------------------------------------------------------------------------
 // Preferenze
 // ---------------------------------------------------------------------------
+
+function prefsSummary() {
+  const o = state.options;
+  const hw = o.highways === 0 ? 'Senza autostrade' : o.highways === 0.5 ? 'Autostrade se servono' : 'Autostrade sì';
+  const parts = [hw, o.shortest ? 'più corto' : 'più veloce'];
+  if (o.avoidUnpaved) parts.push('niente sterrato');
+  if (o.avoidTolls) parts.push('niente pedaggi');
+  if (o.avoidFerries) parts.push('niente traghetti');
+  return parts.join(' · ');
+}
 
 function bindOptions() {
   document.querySelectorAll('input[name="highways"]').forEach((r) =>
@@ -431,6 +634,9 @@ function bindOptions() {
     state.name = e.target.value;
     changed({ recalc: false });
   });
+  $('#trip-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.target.blur();
+  });
 }
 
 function syncControls() {
@@ -441,7 +647,6 @@ function syncControls() {
   $('#opt-unpaved').checked = state.options.avoidUnpaved;
   for (const r of document.querySelectorAll('input[name="highways"]')) r.checked = Number(r.value) === state.options.highways;
   for (const r of document.querySelectorAll('input[name="shortest"]')) r.checked = (r.value === '1') === state.options.shortest;
-  for (const r of document.querySelectorAll('input[name="insert-mode"]')) r.checked = r.value === state.insertMode;
 }
 
 // ---------------------------------------------------------------------------
@@ -449,15 +654,16 @@ function syncControls() {
 // ---------------------------------------------------------------------------
 
 function currentKey() {
-  return JSON.stringify([state.stops.map((s) => [s.lat, s.lon, s.type]), state.loop, state.options]);
+  return JSON.stringify([placed().map((s) => [s.lat, s.lon, s.type, s.snap]), state.loop, state.options]);
 }
 
 /** Da chiamare a ogni modifica. */
 function changed({ recalc = true } = {}) {
   renderStops();
   renderMarkers();
+  $('#prefs-summary').textContent = prefsSummary();
   persist();
-  if (route) renderResult(); // aggiorna i nomi nelle tratte e nel roadbook
+  renderResult();
   if (recalc) scheduleRecalc();
 }
 
@@ -465,10 +671,11 @@ function scheduleRecalc() {
   clearTimeout(recalcTimer);
   const key = currentKey();
   if (key === routeKey && route) return;
-  if (state.stops.length < 2) {
+  if (placed().length < 2) {
     if (recalcAbort) recalcAbort.abort();
+    recalcSeq++;
     clearRoute();
-    setStatus(state.stops.length === 1 ? 'Aggiungi almeno un\'altra tappa per calcolare il percorso.' : '');
+    setStatus('');
     return;
   }
   setStatus('Calcolo del percorso…', 'busy');
@@ -481,7 +688,7 @@ async function recalc() {
   recalcAbort = ctrl;
   const seq = ++recalcSeq;
   const key = currentKey();
-  const stops = state.stops.map((s) => ({ ...s }));
+  const stops = placed().map((s) => ({ ...s }));
   const loop = state.loop;
   showMapStatus('Calcolo…');
   try {
@@ -521,6 +728,15 @@ function setStatus(text, kind = '') {
   const el = $('#route-status');
   el.textContent = text;
   el.className = `status ${kind}`;
+  $('#result-empty').hidden = !!route || !!text;
+  updateDock();
+}
+
+function updateDock() {
+  if (route && routeKey === currentKey()) setDock('ready');
+  else if (placed().length < 2) setDock('idle');
+  else if ($('#route-status').classList.contains('error')) setDock('error');
+  else setDock('busy');
 }
 
 function showMapStatus(text) {
@@ -529,20 +745,34 @@ function showMapStatus(text) {
   el.hidden = !text;
 }
 
+function setDock(mode) {
+  const ready = mode === 'ready';
+  $('#btn-tbt-dl').disabled = !ready;
+  $('#btn-tbt-share').disabled = !ready;
+  if (ready) {
+    $('#dock-km').textContent = formatKm(route.parsed.summary.length);
+    $('#dock-time').textContent = `${formatDuration(route.parsed.summary.time)} · ${turnByTurnInstructions(route.parsed).length} indicazioni`;
+  } else if (mode === 'busy') {
+    $('#dock-km').textContent = '…';
+    $('#dock-time').textContent = 'Calcolo del percorso';
+  } else if (mode === 'error') {
+    $('#dock-km').textContent = '–';
+    $('#dock-time').textContent = 'Percorso non calcolato';
+  } else {
+    const missing = 2 - placed().length;
+    $('#dock-km').textContent = '–';
+    $('#dock-time').textContent = missing > 0 ? (missing === 2 ? 'Scrivi partenza e arrivo' : 'Manca ancora una tappa') : '';
+  }
+}
+
 /** Nomi delle tratte: una tratta va da una tappa "sosta" alla successiva. */
 function legNames(r) {
   const locs = routeLocations(r.stops, r.loop);
-  const names = locs.map((_, i) => (i < r.stops.length ? r.stops[i].name : `${r.stops[0].name} (ritorno)`));
-  const nums = locs.map((_, i) => (i < r.stops.length ? i + 1 : 1));
+  const names = locs.map((_, i) => (i < r.stops.length ? r.stops[i].name : r.stops[0].name));
   const breaks = locs.map((l, i) => (l.type === 'break' ? i : -1)).filter((i) => i >= 0);
   const out = [];
   for (let k = 1; k < breaks.length; k++) {
-    const via = locs.slice(breaks[k - 1] + 1, breaks[k]).length;
-    out.push({
-      from: `${nums[breaks[k - 1]]}. ${short(names[breaks[k - 1]])}`,
-      to: `${nums[breaks[k]]}. ${short(names[breaks[k]])}`,
-      via,
-    });
+    out.push({ from: short(names[breaks[k - 1]]), to: short(names[breaks[k]]), via: breaks[k] - breaks[k - 1] - 1 });
   }
   return out;
 }
@@ -554,37 +784,39 @@ function short(name) {
 function renderResult() {
   const has = !!route;
   $('#route-summary').hidden = !has;
-  for (const id of ['#btn-tbt-dl', '#btn-tbt-share', '#btn-track-dl', '#btn-track-share', '#btn-route-dl', '#btn-route-share', '#btn-copy-roadbook'])
-    $(id).disabled = !has;
-  $('#tbt-count').textContent = '';
-  const rb = $('#roadbook');
-  rb.textContent = '';
-  $('#roadbook-empty').hidden = has;
+  $('#result-empty').hidden = has || !!$('#route-status').textContent;
+  for (const id of ['#btn-track-dl', '#btn-track-share', '#btn-route-dl', '#btn-route-share']) $(id).disabled = !has;
   $('#route-count').textContent = '';
-  $('#legs').textContent = '';
+  updateDock();
   if (!has) return;
-
   const p = route.parsed;
-  $('#tot-km').textContent = formatKm(p.summary.length);
-  $('#tot-time').textContent = formatDuration(p.summary.time);
 
   // dopo una rinomina il percorso non cambia, ma i nomi sì
-  const names = legNames(routeKey === currentKey() ? { ...route, stops: state.stops } : route);
+  const names = legNames(routeKey === currentKey() ? { ...route, stops: placed() } : route);
+  const legs = $('#legs');
+  legs.textContent = '';
   p.legs.forEach((leg, i) => {
     const li = document.createElement('li');
-    const n = names[i] || { from: `Tratta ${i + 1}`, to: '', via: 0 };
+    const n = names[i];
     li.innerHTML = '<span class="leg-name"></span><span class="leg-num"></span>';
-    li.querySelector('.leg-name').textContent = `${n.from}${n.to ? ` → ${n.to}` : ''}${n.via ? ` (via ${n.via} passaggi${n.via === 1 ? 'o' : ''})` : ''}`;
+    li.querySelector('.leg-name').textContent = n ? `${n.from} → ${n.to}${n.via ? ` (via ${n.via} passaggi${n.via === 1 ? 'o' : ''})` : ''}` : `Tratta ${i + 1}`;
     li.querySelector('.leg-num').textContent = `${formatKm(leg.length)} · ${formatDuration(leg.time)}`;
-    $('#legs').appendChild(li);
+    legs.appendChild(li);
   });
-
-  $('#tbt-count').textContent = `Contiene ${turnByTurnInstructions(p).length} istruzioni.`;
+  if (p.legs.length > 1) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="leg-name"><b>Totale</b></span><span class="leg-num"></span>';
+    li.querySelector('.leg-num').textContent = `${formatKm(p.summary.length)} · ${formatDuration(p.summary.time)}`;
+    legs.appendChild(li);
+  }
 
   const pts = buildRoutePoints(p, route.stops, route.loop);
   const shaping = pts.filter((x) => x.kind === 'shaping').length;
-  $('#route-count').textContent = `La rotta contiene ${pts.length} punti (${pts.length - shaping} tappe e ${shaping} di passaggio).`;
+  $('#route-count').textContent = `${pts.length} punti (${pts.length - shaping} tappe e ${shaping} di passaggio).`;
 
+  $('#roadbook-title').textContent = `Indicazioni svolta per svolta (${p.maneuvers.length})`;
+  const rb = $('#roadbook');
+  rb.textContent = '';
   const frag = document.createDocumentFragment();
   for (const m of p.maneuvers) {
     const li = document.createElement('li');
@@ -625,18 +857,12 @@ function exportReady() {
 function gpxFile(kind) {
   const name = tripName();
   const now = new Date();
-  // nomi aggiornati delle tappe (possono essere stati rinominati dopo il calcolo)
-  const stops = state.stops.map((s) => ({ ...s }));
-  if (kind === 'turn-by-turn') {
-    const res = buildTurnByTurnGpx({ name, stops, loop: route.loop, parsed: route.parsed, time: now });
-    return { xml: res.xml, filename: gpxFileName(name, now, 'turn-by-turn') };
-  }
-  if (kind === 'traccia') {
-    const xml = buildTrackGpx({ name, stops, loop: route.loop, parsed: route.parsed, time: now });
-    return { xml, filename: gpxFileName(name, now, 'traccia') };
-  }
-  const res = buildRouteGpx({ name: `${name} (rotta)`, stops, loop: route.loop, parsed: route.parsed, time: now });
-  return { xml: res.xml, filename: gpxFileName(name, now, 'rotta') };
+  // nomi aggiornati delle tappe (possono essere cambiati dopo il calcolo)
+  const stops = placed().map((s) => ({ ...s }));
+  const opts = { name, stops, loop: route.loop, parsed: route.parsed, time: now };
+  if (kind === 'turn-by-turn') return { xml: buildTurnByTurnGpx(opts).xml, filename: gpxFileName(name, now, 'turn-by-turn') };
+  if (kind === 'traccia') return { xml: buildTrackGpx(opts), filename: gpxFileName(name, now, 'traccia') };
+  return { xml: buildRouteGpx({ ...opts, name: `${name} (rotta)` }).xml, filename: gpxFileName(name, now, 'rotta') };
 }
 
 function download({ xml, filename }) {
@@ -649,7 +875,7 @@ function download({ xml, filename }) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
-  toast(`File «${filename}» scaricato.`);
+  toast(`Scaricato «${filename}».`);
 }
 
 async function share(f) {
@@ -665,21 +891,25 @@ async function share(f) {
     }
     return;
   }
-  // il browser non può condividere file: scarico
-  download(f);
+  download(f); // il browser non può condividere file
 }
 
-$('#btn-tbt-dl').addEventListener('click', () => exportReady() && download(gpxFile('turn-by-turn')));
-$('#btn-tbt-share').addEventListener('click', () => exportReady() && share(gpxFile('turn-by-turn')));
-$('#btn-track-dl').addEventListener('click', () => exportReady() && download(gpxFile('traccia')));
-$('#btn-route-dl').addEventListener('click', () => exportReady() && download(gpxFile('rotta')));
-$('#btn-track-share').addEventListener('click', () => exportReady() && share(gpxFile('traccia')));
-$('#btn-route-share').addEventListener('click', () => exportReady() && share(gpxFile('rotta')));
+const exportButtons = {
+  '#btn-tbt-dl': ['turn-by-turn', download],
+  '#btn-tbt-share': ['turn-by-turn', share],
+  '#btn-track-dl': ['traccia', download],
+  '#btn-track-share': ['traccia', share],
+  '#btn-route-dl': ['rotta', download],
+  '#btn-route-share': ['rotta', share],
+};
+for (const [sel, [kind, action]] of Object.entries(exportButtons)) {
+  $(sel).addEventListener('click', () => exportReady() && action(gpxFile(kind)));
+}
 
 $('#btn-copy-roadbook').addEventListener('click', async () => {
   if (!route) return;
-  const text = roadbookText(tripName(), route.parsed, state.stops);
-  if (await copyText(text)) toast('Roadbook copiato.');
+  const text = roadbookText(tripName(), route.parsed, placed());
+  if (await copyText(text)) toast('Indicazioni copiate.');
   else toast('Copia non riuscita: tieni premuto sul testo per copiarlo a mano.', true);
 });
 
@@ -716,7 +946,7 @@ function snapshot() {
     name: state.name,
     loop: state.loop,
     options: { ...state.options },
-    stops: state.stops.map(({ lat, lon, name, type, custom }) => ({ lat, lon, name, type, custom })),
+    stops: placed().map(({ lat, lon, name, type, snap, context, kind }) => ({ lat, lon, name, type, snap, context, kind })),
   };
 }
 
@@ -724,9 +954,15 @@ function applySnapshot(s) {
   state.name = s.name || '';
   state.loop = !!s.loop;
   state.options = { ...DEFAULT_OPTIONS, ...(s.options || {}) };
-  state.stops = (s.stops || []).map((x) => makeStop(x.lat, x.lon, x.name, { type: x.type === 'through' ? 'through' : 'break', custom: x.custom ?? true }));
+  state.stops = (s.stops || []).map((x) =>
+    placedStop(x.lat, x.lon, x.name, {
+      type: x.type === 'through' ? 'through' : 'break',
+      snap: !!x.snap,
+      context: x.context || '',
+      kind: x.kind || '',
+    }),
+  );
   syncControls();
-  $('#quick-input').value = state.stops.map((x) => x.name).join('\n');
   clearRoute();
   changed();
   fitAll();
@@ -755,8 +991,8 @@ function shareHash() {
 }
 
 function persist() {
-  writeJson(STORAGE_CURRENT, { ...snapshot(), insertMode: state.insertMode });
-  const hash = state.stops.length ? shareHash() : '';
+  writeJson(STORAGE_CURRENT, snapshot());
+  const hash = placed().length ? shareHash() : '';
   if (location.hash !== hash) history.replaceState(null, '', hash || location.pathname + location.search);
 }
 
@@ -769,21 +1005,25 @@ function renderSaved() {
   const list = savedTrips().sort((a, b) => b.savedAt - a.savedAt);
   const ul = $('#saved');
   ul.textContent = '';
-  $('#saved-empty').hidden = list.length > 0;
+  $('#saved-summary').textContent = list.length
+    ? `${list.length} ${list.length === 1 ? 'giro salvato' : 'giri salvati'} su questo dispositivo`
+    : 'Salva o apri il giro su un altro dispositivo';
   for (const t of list) {
     const li = document.createElement('li');
     li.innerHTML = `
       <div class="s-text"><div class="s-name"></div><div class="s-meta"></div></div>
-      <button type="button" class="btn small secondary" data-act="load">Carica</button>
-      <button type="button" class="icon-btn del" data-act="del" aria-label="Elimina giro salvato">✕</button>`;
+      <button type="button" class="btn small secondary" data-act="load">Apri</button>
+      <button type="button" class="icon-btn del" data-act="del" aria-label="Elimina giro salvato">${ICON.close}</button>`;
     li.querySelector('.s-name').textContent = t.name;
     const d = new Date(t.savedAt);
-    li.querySelector('.s-meta').textContent = `${t.state.stops.length} tappe · ${d.toLocaleDateString('it-IT')} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
-    li.querySelector('[data-act="load"]').addEventListener('click', () => {
-      if (state.stops.length && !confirm(`Caricare «${t.name}»? Il giro attuale verrà sostituito (salvalo prima se ti serve).`)) return;
+    li.querySelector('.s-meta').textContent = `${t.state.stops.length} tappe · ${d.toLocaleDateString('it-IT')}`;
+    const open = () => {
+      if (placed().length && !confirm(`Aprire «${t.name}»? Il giro attuale verrà sostituito.`)) return;
       applySnapshot(t.state);
-      toast(`Giro «${t.name}» caricato.`);
-    });
+      toast(`Giro «${t.name}» aperto.`);
+    };
+    li.querySelector('.s-text').addEventListener('click', open);
+    li.querySelector('[data-act="load"]').addEventListener('click', open);
     li.querySelector('[data-act="del"]').addEventListener('click', () => {
       if (!confirm(`Eliminare il giro salvato «${t.name}»?`)) return;
       writeJson(STORAGE_TRIPS, savedTrips().filter((x) => x.id !== t.id));
@@ -794,21 +1034,20 @@ function renderSaved() {
 }
 
 $('#btn-save').addEventListener('click', () => {
-  if (!state.stops.length) return toast('Aggiungi almeno una tappa prima di salvare.', true);
+  if (!placed().length) return toast('Aggiungi almeno una tappa prima di salvare.', true);
   const name = tripName();
   const list = savedTrips();
   const existing = list.find((t) => t.name === name);
   if (existing && !confirm(`Esiste già un giro chiamato «${name}». Sovrascriverlo?`)) return;
   const entry = { id: existing ? existing.id : `${Date.now()}`, name, savedAt: Date.now(), state: snapshot() };
   const next = existing ? list.map((t) => (t.id === existing.id ? entry : t)) : [...list, entry];
-  if (!writeJson(STORAGE_TRIPS, next))
-    return toast('Salvataggio non riuscito: la memoria del browser è piena o disattivata (navigazione privata?).', true);
+  if (!writeJson(STORAGE_TRIPS, next)) return toast('Salvataggio non riuscito: la memoria del browser è piena o disattivata (navigazione privata?).', true);
   renderSaved();
-  toast(`Giro «${name}» salvato su questo dispositivo.`);
+  toast(`Giro «${name}» salvato.`);
 });
 
 $('#btn-share-link').addEventListener('click', async () => {
-  if (!state.stops.length) return toast('Aggiungi almeno una tappa per creare il link.', true);
+  if (!placed().length) return toast('Aggiungi almeno una tappa per creare il link.', true);
   const url = `${location.origin}${location.pathname}${shareHash()}`;
   if (navigator.share) {
     try {
@@ -861,11 +1100,9 @@ bindOptions();
 renderSaved();
 if (!loadFromHash()) {
   const saved = readJson(STORAGE_CURRENT, null);
-  if (saved && Array.isArray(saved.stops) && saved.stops.length) {
-    state.insertMode = saved.insertMode === 'middle' ? 'middle' : 'end';
-    applySnapshot(saved);
-  } else {
+  if (saved && Array.isArray(saved.stops) && saved.stops.length) applySnapshot(saved);
+  else {
     syncControls();
-    renderStops();
+    changed({ recalc: false });
   }
 }

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Tracce Moto</title>
-  <meta name="description" content="Progetta giri in moto ed esporta GPX traccia e rotta per BMW Motorrad Connected e navigatori.">
+  <meta name="description" content="Da un elenco di località a un GPX turn by turn strada per strada, per giri in moto.">
   <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#111418" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
@@ -30,157 +30,136 @@
       <div id="map" role="application" aria-label="Mappa: tocca per aggiungere un punto"></div>
       <div class="map-buttons">
         <button type="button" class="map-btn" id="btn-locate" title="La mia posizione" aria-label="La mia posizione">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5" fill="none"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle class="fill" cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg>
         </button>
         <button type="button" class="map-btn" id="btn-fit" title="Mostra tutto il giro" aria-label="Mostra tutto il giro">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
         </button>
-        <button type="button" class="map-btn" id="btn-expand" title="Ingrandisci la mappa" aria-label="Ingrandisci la mappa" aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M6 10l6-6 6 6M6 14l6 6 6-6"/></svg>
+        <button type="button" class="map-btn mobile-only" id="btn-expand" title="Ingrandisci la mappa" aria-label="Ingrandisci la mappa" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M7 9l5-5 5 5M7 15l5 5 5-5"/></svg>
         </button>
       </div>
       <div class="map-status" id="map-status" hidden></div>
     </div>
 
     <main class="panel" id="panel">
-      <header class="panel-head">
-        <h1><span class="logo" aria-hidden="true"></span>Tracce Moto</h1>
-        <label class="field">
-          <span class="label">Nome del giro</span>
-          <input id="trip-name" type="text" autocomplete="off" placeholder="Es. Stelvio e Gavia" maxlength="80">
-        </label>
+      <header class="top">
+        <img class="logo" src="icons/icon.svg" alt="" width="30" height="30">
+        <input id="trip-name" class="trip-name" type="text" autocomplete="off" maxlength="80"
+               placeholder="Nome del giro" aria-label="Nome del giro">
+        <button type="button" class="btn ghost small" id="btn-new">Nuovo</button>
       </header>
 
-      <section class="card" aria-labelledby="h-quick">
-        <h2 id="h-quick"><span class="step">1</span>Località in ordine</h2>
-        <form id="quick-form">
-          <textarea id="quick-input" rows="4" autocomplete="off" autocapitalize="words"
-                    aria-label="Località, una per riga"
-                    placeholder="Una località per riga, dalla partenza all'arrivo:&#10;Sirolo&#10;Passo dello Stelvio&#10;Passo di Gavia&#10;Ponte di Legno"></textarea>
-          <button type="submit" class="btn wide" id="quick-btn">Calcola il percorso</button>
-        </form>
-        <p class="hint">Dalla partenza all'arrivo, una per riga. Per ogni località uso il primo risultato della ricerca: se è sbagliata aggiungi la provincia (es. «Gavia, Sondrio») oppure correggila in «Modifica le tappe a mano».</p>
-      </section>
-
-      <section class="card" aria-labelledby="h-prefs">
-        <h2 id="h-prefs"><span class="step">2</span>Preferenze</h2>
-        <div class="row-label">Autostrade</div>
-        <div class="segmented" role="radiogroup" aria-label="Autostrade">
-          <label><input type="radio" name="highways" value="0"><span>Evita</span></label>
-          <label><input type="radio" name="highways" value="0.5"><span>Se serve</span></label>
-          <label><input type="radio" name="highways" value="1" checked><span>Normale</span></label>
-        </div>
-        <label class="switch"><input type="checkbox" id="opt-tolls"><span>Evita pedaggi</span></label>
-        <label class="switch"><input type="checkbox" id="opt-ferries"><span>Evita traghetti</span></label>
-        <label class="switch"><input type="checkbox" id="opt-unpaved" checked><span>Evita sterrato</span></label>
-        <div class="row-label">Percorso</div>
-        <div class="segmented" role="radiogroup" aria-label="Tipo di percorso">
-          <label><input type="radio" name="shortest" value="0" checked><span>Più veloce</span></label>
-          <label><input type="radio" name="shortest" value="1"><span>Più corto</span></label>
-        </div>
-      </section>
-
-      <section class="card" aria-labelledby="h-result" id="result-card">
-        <h2 id="h-result"><span class="step">3</span>Il tuo GPX</h2>
-        <div id="route-status" class="status" role="status" aria-live="polite"></div>
-        <div id="route-summary" hidden>
-          <div class="totals">
-            <div><span class="big" id="tot-km">–</span><span class="small-label">distanza</span></div>
-            <div><span class="big" id="tot-time">–</span><span class="small-label">tempo</span></div>
-          </div>
-          <ol id="legs" class="legs"></ol>
-        </div>
-        <div class="btn-row main-export">
-          <button type="button" class="btn" id="btn-tbt-dl" disabled>Scarica GPX turn by turn</button>
-          <button type="button" class="btn secondary" id="btn-tbt-share" disabled>Invia a…</button>
-        </div>
-        <p class="hint">Un solo file: tracciato strada per strada, le tappe e un'istruzione per ogni svolta
-          (es. «12,4 km Destra su SP5», con la distanza fino alla svolta successiva). Le indicazioni sono nel formato
-          di OsmAnd; le altre app mostrano comunque i nomi delle svolte. <span id="tbt-count"></span></p>
-      </section>
-
-      <section class="card" aria-labelledby="h-roadbook">
-        <div class="card-head">
-          <h2 id="h-roadbook">Roadbook</h2>
-          <button type="button" class="btn small" id="btn-copy-roadbook" disabled>Copia roadbook</button>
-        </div>
-        <ol id="roadbook" class="roadbook"></ol>
-        <p class="hint" id="roadbook-empty">Le indicazioni compaiono dopo il calcolo del percorso.</p>
-      </section>
-
-      <details class="card more" id="manual-card">
-        <summary><h2>Modifica le tappe a mano</h2></summary>
-      <div class="sub" aria-labelledby="h-search">
-        <h3 id="h-search">Aggiungi tappe</h3>
-        <form id="search-form" class="search" role="search">
-          <input id="search-input" type="search" enterkeyhint="search" autocomplete="off"
-                 placeholder="Cerca un luogo e premi invio" aria-label="Cerca un luogo">
-          <button type="submit" class="btn">Cerca</button>
-        </form>
-        <ul id="search-results" class="results" hidden></ul>
-        <div class="row-label">Nuovi punti</div>
-        <div class="segmented" role="radiogroup" aria-label="Dove aggiungere i nuovi punti">
-          <label><input type="radio" name="insert-mode" value="end" checked><span>In fondo</span></label>
-          <label><input type="radio" name="insert-mode" value="middle"><span>Come intermedia</span></label>
-        </div>
-        <p class="hint">Oppure tocca la mappa: si apre il nome del punto con il pulsante «Aggiungi».</p>
-      </div>
-      <div class="sub" aria-labelledby="h-stops">
-        <div class="card-head">
-          <h3 id="h-stops">Tappe</h3>
-          <button type="button" class="btn small ghost" id="btn-clear">Svuota</button>
-        </div>
+      <section class="card" aria-labelledby="h-stops">
+        <h2 id="h-stops" class="visually-hidden">Tappe</h2>
         <ol id="stops" class="stops"></ol>
-        <p class="hint" id="stops-empty">Nessuna tappa. Cerca un luogo o tocca la mappa per scegliere la partenza.</p>
-        <label class="switch">
-          <input type="checkbox" id="opt-loop">
-          <span>Torna alla partenza (anello)</span>
-        </label>
-      </div>
+        <div class="row-actions">
+          <button type="button" class="btn secondary" id="btn-add">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Aggiungi tappa
+          </button>
+          <label class="switch compact">
+            <input type="checkbox" id="opt-loop">
+            <span>Anello</span>
+          </label>
+        </div>
+        <p class="hint">Scrivi una località e premi <b>Invio</b>. Puoi incollare un elenco (una per riga),
+          coordinate o un link di Google Maps, oppure toccare la mappa.</p>
+      </section>
+
+      <details class="card fold" id="prefs-card">
+        <summary>
+          <span class="fold-title">Preferenze</span>
+          <span class="fold-sub" id="prefs-summary"></span>
+        </summary>
+        <div class="fold-body">
+          <div class="row-label">Autostrade</div>
+          <div class="segmented" role="radiogroup" aria-label="Autostrade">
+            <label><input type="radio" name="highways" value="0"><span>Evita</span></label>
+            <label><input type="radio" name="highways" value="0.5"><span>Se serve</span></label>
+            <label><input type="radio" name="highways" value="1" checked><span>Normale</span></label>
+          </div>
+          <div class="row-label">Percorso</div>
+          <div class="segmented" role="radiogroup" aria-label="Tipo di percorso">
+            <label><input type="radio" name="shortest" value="0" checked><span>Più veloce</span></label>
+            <label><input type="radio" name="shortest" value="1"><span>Più corto</span></label>
+          </div>
+          <label class="switch"><input type="checkbox" id="opt-unpaved" checked><span>Evita sterrato</span></label>
+          <label class="switch"><input type="checkbox" id="opt-tolls"><span>Evita pedaggi</span></label>
+          <label class="switch"><input type="checkbox" id="opt-ferries"><span>Evita traghetti</span></label>
+        </div>
       </details>
 
-      <details class="card more" id="export-card">
-        <summary><h2 id="h-export">Altri formati (navigatori Garmin e BMW)</h2></summary>
-        <div class="export">
+      <section class="card" id="result-card" aria-labelledby="h-result">
+        <h2 id="h-result">Percorso</h2>
+        <div id="route-status" class="status" role="status" aria-live="polite"></div>
+        <div id="route-summary" hidden>
+          <ol id="legs" class="legs"></ol>
+          <details class="inner-fold" id="roadbook-fold">
+            <summary><span id="roadbook-title">Indicazioni</span></summary>
+            <ol id="roadbook" class="roadbook"></ol>
+            <button type="button" class="btn small secondary" id="btn-copy-roadbook">Copia le indicazioni</button>
+          </details>
+        </div>
+        <p class="hint" id="result-empty">Il percorso compare qui quando ci sono almeno due tappe.</p>
+      </section>
+
+      <details class="card fold" id="export-card">
+        <summary>
+          <span class="fold-title">Altri formati</span>
+          <span class="fold-sub">Per navigatori Garmin e BMW</span>
+        </summary>
+        <div class="fold-body export">
           <div class="export-item">
-            <div>
-              <strong>Traccia</strong>
-              <p class="hint">Linea completa del percorso, le tappe e un punto per ogni svolta con l'istruzione (es. «12,4 km Destra su SP5»). La più fedele: segue esattamente queste strade.</p>
-            </div>
+            <strong>Traccia</strong>
+            <p class="hint">La linea del percorso, le tappe e un punto su ogni svolta. Il navigatore segue esattamente queste strade.</p>
             <div class="btn-row">
-              <button type="button" class="btn" id="btn-track-dl" disabled>Scarica</button>
+              <button type="button" class="btn secondary" id="btn-track-dl" disabled>Scarica</button>
               <button type="button" class="btn secondary" id="btn-track-share" disabled>Invia a…</button>
             </div>
           </div>
           <div class="export-item">
-            <div>
-              <strong>Rotta</strong>
-              <p class="hint">Tappe più punti di passaggio dopo ogni svolta: il navigatore ricalcola le indicazioni svolta per svolta. <span id="route-count"></span></p>
-            </div>
+            <strong>Rotta</strong>
+            <p class="hint">Tappe e un punto subito dopo ogni svolta: il navigatore ricalcola le indicazioni restando su queste strade. <span id="route-count"></span></p>
             <div class="btn-row">
-              <button type="button" class="btn" id="btn-route-dl" disabled>Scarica</button>
+              <button type="button" class="btn secondary" id="btn-route-dl" disabled>Scarica</button>
               <button type="button" class="btn secondary" id="btn-route-share" disabled>Invia a…</button>
             </div>
           </div>
         </div>
       </details>
 
-      <section class="card" aria-labelledby="h-saved">
-        <h2 id="h-saved">Giri salvati</h2>
-        <div class="btn-row">
-          <button type="button" class="btn" id="btn-save">Salva giro</button>
-          <button type="button" class="btn secondary" id="btn-share-link">Condividi link</button>
+      <details class="card fold" id="saved-card">
+        <summary>
+          <span class="fold-title">Giri salvati</span>
+          <span class="fold-sub" id="saved-summary">Salva o apri il giro su un altro dispositivo</span>
+        </summary>
+        <div class="fold-body">
+          <div class="btn-row">
+            <button type="button" class="btn secondary" id="btn-save">Salva</button>
+            <button type="button" class="btn secondary" id="btn-share-link">Condividi link</button>
+          </div>
+          <ul id="saved" class="saved"></ul>
         </div>
-        <ul id="saved" class="saved"></ul>
-        <p class="hint" id="saved-empty">Nessun giro salvato su questo dispositivo. Per passare un giro dal PC al telefono usa «Condividi link».</p>
-      </section>
+      </details>
 
       <footer class="foot">
-        Percorsi: <a href="https://valhalla.github.io/valhalla/" target="_blank" rel="noopener">Valhalla</a> (server FOSSGIS) ·
-        Ricerca: <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> ·
-        Dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.
-        Controlla sempre il percorso prima di partire.
+        Percorsi <a href="https://valhalla.github.io/valhalla/" target="_blank" rel="noopener">Valhalla</a> (FOSSGIS) ·
+        ricerca <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> ·
+        dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.
+        Controlla sempre il percorso prima di partire: aperture dei passi e lavori non sono noti.
       </footer>
+
+      <div class="dock" id="dock">
+        <div class="dock-info">
+          <strong id="dock-km">–</strong>
+          <span id="dock-time">Aggiungi le tappe</span>
+        </div>
+        <button type="button" class="btn" id="btn-tbt-dl" disabled>Scarica GPX</button>
+        <button type="button" class="btn secondary icon" id="btn-tbt-share" disabled aria-label="Invia GPX a un'altra app" title="Invia a…">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+        </button>
+      </div>
     </main>
   </div>
 
