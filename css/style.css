@@ -139,6 +139,14 @@ body { display: flex; flex-direction: column; height: 100dvh; }
 .sheet-handle:active span { width: 56px; opacity: 0.8; }
 .app.sheet-collapsed .sheet-handle span { width: 56px; opacity: 0.7; }
 
+.app.no-stops:not(.sheet-collapsed) { --map-h: 24dvh; }
+/* con la mappa bassa restano solo i pulsanti utili (la posizione); il resto compare con il primo giro */
+@media (max-width: 899px) {
+  .app.no-stops:not(.sheet-collapsed) #btn-fit,
+  .app.no-stops:not(.sheet-collapsed) #btn-expand,
+  .app.no-stops:not(.sheet-collapsed) .leaflet-top.leaflet-right { display: none; }
+}
+
 @media (min-width: 900px) {
   .app { flex-direction: row-reverse; }
   .map-wrap { height: auto; flex: 1; }
@@ -224,12 +232,12 @@ body { display: flex; flex-direction: column; height: 100dvh; }
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 6px 0 4px;
-  padding: 10px 12px;
+  margin: 4px 0 2px;
+  padding: 8px 12px;
   border-radius: 10px;
   background: var(--text);
   color: var(--card);
-  font-size: 14px;
+  font-size: 13px;
 }
 .install-hint p { margin: 0; flex: 1; }
 .install-hint svg { width: 18px; height: 18px; vertical-align: -3px; }
@@ -594,6 +602,15 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
 .plus-card { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: var(--text); border-left: 3px solid var(--accent); }
 .plus-card span { color: var(--muted); font-size: 14px; }
 .site-nav .nav-plus { color: var(--accent); }
+
+/* scheda Percorso ancora vuota: dice cosa fare e permette di provare subito */
+.start-here { padding: 2px 2px 0; }
+.start-title { margin: 0 0 6px; font-weight: 700; }
+.start-steps { margin: 0 0 12px; padding-left: 1.3em; color: var(--muted); font-size: 15px; }
+.start-steps li { margin: 5px 0; }
+.start-steps b { color: var(--text); }
+.how-to-open { margin-top: 12px; }
+.how-to-open a { font-weight: 600; }
 
 .donate-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .donate-card .hint { margin: 2px 0 0; }

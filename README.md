@@ -94,6 +94,11 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 - **Percorso**: tratte con km e tempo, totale e indicazioni svolta per svolta con km progressivi (tocca una riga per
   vederla sulla mappa, «Copia le indicazioni» per il testo).
 - **Giri salvati** sul dispositivo e **link condivisibile** con lo stato del giro nell'indirizzo.
+- **Primo utilizzo guidato**: la scheda «Percorso» vuota spiega i tre passi e ha **Prova con un esempio** (Bormio,
+  Stelvio, Gavia, Ponte di Legno: parte all'istante, senza ricerche). Sul telefono, finché non c'è una tappa, la mappa
+  è più bassa e si vedono subito i campi da compilare; sul computer il cursore parte nel campo della partenza.
+  Dopo il primo GPX scaricato un avviso spiega come aprirlo (OsmAnd, Whip Live, Google/Apple). Ctrl o Cmd + Invio
+  nell'Elenco calcola il percorso; il titolo della scheda del browser porta il nome del giro.
 - **Annulla / Ripeti** le modifiche alle tappe, **Inverti** il giro, **Apri un file GPX** (tappe da `wpt`/`rtept`,
   oppure punti presi dalla traccia) nella vista «Elenco».
 - **Profilo altimetrico** con dislivello in salita e discesa e quota massima (servizio `/height` di Valhalla).

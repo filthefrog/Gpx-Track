@@ -33,11 +33,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/roadbook.css?v=202610041804">
-  <link rel="stylesheet" href="css/style.css?v=202610041804">
+  <link rel="stylesheet" href="css/roadbook.css?v=202610041832">
+  <link rel="stylesheet" href="css/style.css?v=202610041832">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041804"></script>
+  <script type="module" src="js/app.js?v=202610041832"></script>
 </head>
 <body>
   <header class="site-top">
@@ -170,8 +170,21 @@
             <ol id="roadbook" class="roadbook"></ol>
             <button type="button" class="btn small secondary" id="btn-copy-roadbook">Copia le indicazioni</button>
           </details>
+          <p class="hint how-to-open">Come aprirlo:
+            <a href="guide/gpx-osmand/" target="_blank" rel="noopener">OsmAnd</a> ·
+            <a href="guide/gpx-whip-live/" target="_blank" rel="noopener">Whip Live</a> ·
+            <a href="guide/google-maps-apple-mappe/" target="_blank" rel="noopener">Google Maps e Apple Mappe</a> ·
+            <a href="guide/roadbook-rally/" target="_blank" rel="noopener">Roadbook da rally</a></p>
         </div>
-        <p class="hint" id="result-empty">Il percorso compare qui quando ci sono almeno due tappe.</p>
+        <div class="start-here" id="result-empty">
+          <p class="start-title">Come si fa</p>
+          <ol class="start-steps">
+            <li><b>Scrivi le località</b> nelle tappe, o incollale tutte insieme in «Elenco».</li>
+            <li><b>Controlla il giro</b> sulla mappa: puoi trascinare la linea sulla strada che preferisci.</li>
+            <li><b>Scarica il GPX</b> per OsmAnd e Whip Live, oppure apri il giro in Google Maps e Apple Mappe.</li>
+          </ol>
+          <button type="button" class="btn secondary" id="btn-example">Prova con un esempio</button>
+        </div>
       </section>
 
       <!--annuncio-strumento--><!--/annuncio-strumento-->
@@ -296,7 +309,7 @@
       </section>
 
       <footer class="foot">
-        <nav class="foot-links" aria-label="Sito">
+        <nav class="foot-links" aria-label="Altre pagine">
           <a href="guide/">Guide</a>
           <a href="sostieni/">Sostieni</a>
           <a href="info/">Chi siamo</a>
@@ -316,7 +329,7 @@
         </div>
         <button type="button" class="btn go" id="btn-maps" disabled aria-label="Apri in Google Maps o Apple Mappe">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></svg>Mappe</button>
-        <button type="button" class="btn" id="btn-tbt-dl" disabled>GPX</button>
+        <button type="button" class="btn" id="btn-tbt-dl" disabled title="Scarica il GPX turn by turn, per OsmAnd e Whip Live" aria-label="Scarica il GPX turn by turn, per OsmAnd e Whip Live">GPX</button>
         <button type="button" class="btn secondary icon" id="btn-tbt-share" disabled aria-label="Invia GPX a un'altra app" title="Invia a…">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
         </button>

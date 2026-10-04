@@ -7,7 +7,7 @@
 // "passaggi" prima e dopo il passo, obbligano il percorso a salire e scendere dal
 // versante scelto.
 
-import { haversine, pointSegmentDistance } from './core.js?v=202610041804';
+import { haversine, pointSegmentDistance } from './core.js?v=202610041832';
 
 export const PASS = Object.freeze({
   SEARCH_RADIUS: 5000, // metri attorno al passo da chiedere a Overpass

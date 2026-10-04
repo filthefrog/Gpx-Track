@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610041804';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041804';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041804';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041804';
-import { CONFIG } from './config.js?v=202610041804';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610041804';
-import { mountRoadbookView } from './roadbook-view.js?v=202610041804';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041804';
+} from './core.js?v=202610041832';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041832';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041832';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041832';
+import { CONFIG } from './config.js?v=202610041832';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610041832';
+import { mountRoadbookView } from './roadbook-view.js?v=202610041832';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041832';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1793,8 +1793,13 @@ function download({ xml, filename }) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
-  toast(`Scaricato «${filename}».`);
+  // il primo GPX scaricato in questa sessione: si spiega come aprirlo
+  if (!downloadHintShown) {
+    downloadHintShown = true;
+    toast(`Scaricato «${filename}».`, false, { label: 'Come si apre?', run: () => window.open('guide/gpx-osmand/', '_blank', 'noopener') });
+  } else toast(`Scaricato «${filename}».`);
 }
+let downloadHintShown = false;
 
 async function share(f) {
   const file = new File([f.xml], f.filename, { type: 'application/gpx+xml' });
@@ -2123,7 +2128,15 @@ function shareHash() {
   return `#g=${encodeState(snapshot())}`;
 }
 
+function updateTitle() {
+  // sul telefono, finché non c'è nessuna tappa, la mappa è più bassa e si vedono subito i campi da compilare
+  appEl.classList.toggle('no-stops', placed().length === 0);
+  const base = 'Traccemoto: pianificatore di giri in moto gratis, GPX e roadbook';
+  document.title = placed().length >= 2 ? `${tripName()} · Traccemoto` : base;
+}
+
 function persist() {
+  updateTitle();
   // solo in questo dispositivo: l'indirizzo della pagina resta pulito (niente tappe nella cronologia del browser)
   writeJson(STORAGE_CURRENT, snapshot());
 }
@@ -2261,7 +2274,7 @@ function toast(text, isError = false, action = null) {
   void el.offsetWidth; // riparte l'animazione di entrata
   el.hidden = false;
   clearTimeout(toastTimer);
-  if (!action) toastTimer = setTimeout(() => (el.hidden = true), isError ? 6000 : 3000);
+  toastTimer = setTimeout(() => (el.hidden = true), action ? 9000 : isError ? 6000 : 3000);
 }
 $('#toast').addEventListener('click', () => ($('#toast').hidden = true));
 
@@ -2350,6 +2363,38 @@ function setupInstall() {
 }
 
 // ---------------------------------------------------------------------------
+// Esempio per provare subito (coordinate note: nessuna ricerca, parte all'istante)
+// ---------------------------------------------------------------------------
+
+const EXAMPLE = {
+  name: 'Esempio: Stelvio e Gavia',
+  loop: false,
+  options: { ...DEFAULT_OPTIONS },
+  stops: [
+    { lat: 46.4672, lon: 10.37, name: 'Bormio', context: 'Prov. SO, Lombardia', kind: 'Città', type: 'break', snap: true },
+    { lat: 46.5286, lon: 10.4532, name: 'Passo dello Stelvio', context: 'Valdidentro (SO), Lombardia', kind: 'Passo', type: 'break', snap: true, pass: { mode: 'auto' } },
+    { lat: 46.3437, lon: 10.4876, name: 'Passo di Gavia', context: 'Valfurva (SO), Lombardia', kind: 'Passo', type: 'break', snap: true, pass: { mode: 'auto' } },
+    { lat: 46.259, lon: 10.5096, name: 'Ponte di Legno', context: 'Prov. BS, Lombardia', kind: 'Paese', type: 'break', snap: true },
+  ],
+};
+
+$('#btn-example').addEventListener('click', () => {
+  if (placed().length && !confirm('Aprire l\'esempio? Il giro attuale verrà sostituito.')) return;
+  applySnapshot(EXAMPLE);
+  setSheet(false);
+  $('#panel').scrollTo({ top: 0 });
+  toast('Ecco un giro di esempio: Bormio, Stelvio, Gavia e Ponte di Legno. Modificalo come vuoi.');
+});
+
+// Ctrl o Cmd + Invio nell'elenco: calcola il percorso
+$('#list-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    $('#btn-list-apply').click();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Avvio
 // ---------------------------------------------------------------------------
 
@@ -2365,6 +2410,9 @@ if (!loadFromHash()) {
     changed({ recalc: false });
   }
 }
+// sul computer il cursore parte già nel campo della partenza (sul telefono no: aprirebbe la tastiera)
+if (!placed().length && window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches && state.stops[0]) focusInput(state.stops[0]);
+updateTitle();
 // vista ricordata (dopo aver caricato il giro, così l'elenco parte dalle tappe)
 try {
   if (localStorage.getItem(STORAGE_VIEW) === 'list') showView('list');

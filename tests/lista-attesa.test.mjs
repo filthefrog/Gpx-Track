@@ -68,3 +68,11 @@ test('lista d\'attesa: robot (campo nascosto) e altri siti', async () => {
   const noDb = await onRequestPost({ request: req({ email: 'a@b.it', consenso: true }), env: {} });
   assert.equal(noDb.status, 503);
 });
+
+test('lista d\'attesa: rifiuta richieste troppo grandi', async () => {
+  const DB = fakeDb();
+  const big = { email: 'a@b.it', consenso: true, fonte: 'x'.repeat(5000) };
+  const res = await onRequestPost({ request: req(big), env: { DB } });
+  assert.equal(res.status, 413);
+  assert.equal(DB.rows.size, 0);
+});

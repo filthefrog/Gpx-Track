@@ -12,10 +12,13 @@ export async function onRequestPost({ request, env }) {
   // solo dalle pagine del sito (niente moduli copiati su altri siti)
   const origin = request.headers.get('origin');
   if (origin && new URL(origin).host !== new URL(request.url).host) return json({ ok: false, errore: 'origine' }, 403);
+  if (Number(request.headers.get('content-length')) > 2048) return json({ ok: false, errore: 'troppo-grande' }, 413);
   if (!env.DB) return json({ ok: false, errore: 'non-configurato' }, 503);
   let data;
   try {
-    data = await request.json();
+    const text = await request.text();
+    if (text.length > 2048) return json({ ok: false, errore: 'troppo-grande' }, 413);
+    data = JSON.parse(text);
   } catch {
     return json({ ok: false, errore: 'richiesta' }, 400);
   }

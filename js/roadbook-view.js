@@ -1,7 +1,7 @@
 // Anteprima, stampa e GPX OpenRally del roadbook: usata dallo strumento (app.js) e dalla pagina del
 // convertitore GPX → roadbook (convertitore.js). Crea da sola la sua finestra; stile in css/roadbook.css.
-import { escapeXml, gpxFileName } from './core.js?v=202610041804';
-import { buildRoadbook, buildOpenRallyGpx, turnByTurnFromGpx, tulipSvg, noteLines, rbKm } from './roadbook.js?v=202610041804';
+import { escapeXml, gpxFileName } from './core.js?v=202610041832';
+import { buildRoadbook, buildOpenRallyGpx, turnByTurnFromGpx, tulipSvg, noteLines, rbKm } from './roadbook.js?v=202610041832';
 
 const FORMATS = {
   // A4 orizzontale con due strisce da 148,5 mm (larghezza A5): si tagliano e si uniscono per il rotolo
@@ -29,7 +29,7 @@ const MARKUP = `
       </div>
     </div>
   </div>
-  <div class="rb-pages" id="rb-pages"></div>`;
+  <div class="rb-pages" id="rb-pages" tabindex="0" role="region" aria-label="Anteprima del roadbook"></div>`;
 
 function boxHtml(b) {
   const lines = noteLines(b).map((l) => `<div>${escapeXml(l)}</div>`).join('');
@@ -70,6 +70,7 @@ export function mountRoadbookView({ notify = (t) => alert(t) } = {}) {
   }
   const q = (sel) => view.querySelector(sel);
   let data = null;
+  let opener = null; // elemento che aveva il focus prima di aprire: ci si torna alla chiusura
 
   const options = () => {
     const format = q('input[name="rb-format"]:checked').value;
@@ -118,10 +119,13 @@ export function mountRoadbookView({ notify = (t) => alert(t) } = {}) {
   const close = () => {
     view.hidden = true;
     document.body.classList.remove('rb-open');
+    if (opener && document.contains(opener)) opener.focus();
+    opener = null;
   };
 
   const open = (d) => {
     data = d;
+    if (view.hidden) opener = document.activeElement;
     q('#rb-title').textContent = d.name;
     q('#rb-info').textContent = d.info || '';
     view.hidden = false;
@@ -156,7 +160,21 @@ export function mountRoadbookView({ notify = (t) => alert(t) } = {}) {
       notify(`Scaricato «${filename}».`);
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !view.hidden) close();
+      if (view.hidden) return;
+      if (e.key === 'Escape') return close();
+      // con Tab il focus resta dentro la finestra
+      if (e.key !== 'Tab') return;
+      const items = [...view.querySelectorAll('button, input, [tabindex="0"]')].filter((el) => el.offsetParent !== null && !el.disabled);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !view.contains(document.activeElement))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !view.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
     });
     window.addEventListener('resize', () => {
       if (!view.hidden) fit();

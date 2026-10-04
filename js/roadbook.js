@@ -2,7 +2,7 @@
 // in stile FIA/FIM: distanza totale e parziale, tulipano, CAP e note.
 // Funzioni pure (nessun DOM, nessuna rete): testate in tests/roadbook.test.mjs.
 // Requisiti e fonti: docs/roadbook.md.
-import { cumulativeDistances, curvature, escapeXml, simplifyRDP } from './core.js?v=202610041804';
+import { cumulativeDistances, curvature, escapeXml, simplifyRDP } from './core.js?v=202610041832';
 
 export const RB = Object.freeze({
   HEADING_M: 35, // metri di traccia per misurare la direzione di entrata e di uscita
@@ -350,7 +350,7 @@ export function tulipSvg(box) {
     }
     parts.push(`<circle cx="${entry[0]}" cy="${entry[1]}" r="5" fill="#000"/>`, line([entry, polar(180, rr), ...arc, polar(to, R - 4)]), arrowHead(polar(to, R + 2), to));
   } else {
-    const t = box.kind === 'straight' ? 0 : box.turn;
+    const t = box.kind === 'straight' || !Number.isFinite(box.turn) ? 0 : box.turn;
     // ramo del pallino e uscita
     parts.push(`<circle cx="${entry[0]}" cy="${entry[1]}" r="5" fill="#000"/>`, line([entry, [C, C], polar(t, R - 4)]), arrowHead(polar(t, R + 2), t));
     // la strada da cui si arriva continua oltre l'incrocio (sottile), se si svolta
