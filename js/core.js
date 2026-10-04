@@ -1192,3 +1192,140 @@ export function gpxFileName(name, date = new Date(), suffix = '') {
 function toIsoSeconds(date) {
   return new Date(date).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
+
+// ---------------------------------------------------------------------------
+// Import GPX
+// ---------------------------------------------------------------------------
+
+function xmlText(s) {
+  return String(s || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&amp;/g, '&')
+    .trim();
+}
+
+function gpxPoints(xml, tag) {
+  const out = [];
+  const re = new RegExp(`<(?:\\w+:)?${tag}\\b([^>]*?)(?:/>|>([\\s\\S]*?)</(?:\\w+:)?${tag}>)`, 'g');
+  let m;
+  while ((m = re.exec(xml))) {
+    const lat = Number((m[1].match(/\blat\s*=\s*["']([^"']+)["']/) || [])[1]);
+    const lon = Number((m[1].match(/\blon\s*=\s*["']([^"']+)["']/) || [])[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const name = m[2] ? xmlText((m[2].match(/<(?:\w+:)?name>([\s\S]*?)<\/(?:\w+:)?name>/) || [])[1]) : '';
+    out.push({ lat, lon, name });
+  }
+  return out;
+}
+
+/**
+ * Legge un file GPX (rotta, waypoint o traccia), senza DOM.
+ * Restituisce { name, kind: 'rte' | 'wpt' | 'trk', points: [{ lat, lon, name }] } oppure null.
+ */
+export function parseGpx(xml) {
+  const text = String(xml || '');
+  if (!/<(?:\w+:)?gpx\b/.test(text)) return null;
+  const meta = text.match(/<(?:\w+:)?metadata>[\s\S]*?<(?:\w+:)?name>([\s\S]*?)<\/(?:\w+:)?name>/);
+  const firstName = text.match(/<(?:\w+:)?(?:rte|trk)>\s*<(?:\w+:)?name>([\s\S]*?)<\/(?:\w+:)?name>/);
+  const name = xmlText((meta && meta[1]) || (firstName && firstName[1]) || '');
+  const rte = gpxPoints(text, 'rtept');
+  if (rte.length >= 2) return { name, kind: 'rte', points: rte };
+  const trk = gpxPoints(text, 'trkpt');
+  if (trk.length >= 2) return { name, kind: 'trk', points: trk };
+  const wpt = gpxPoints(text, 'wpt');
+  if (wpt.length >= 2) return { name, kind: 'wpt', points: wpt };
+  return null;
+}
+
+/** Riduce una lista a `max` elementi a intervalli regolari, tenendo sempre il primo e l'ultimo. */
+function sampleEvenly(list, max) {
+  if (list.length <= max) return list.slice();
+  const out = [];
+  for (let i = 0; i < max; i++) out.push(list[Math.round((i * (list.length - 1)) / (max - 1))]);
+  return out;
+}
+
+/**
+ * Tappe da un GPX importato. Rotte e waypoint diventano tappe (al massimo `max`, a intervalli
+ * regolari); una traccia diventa partenza, arrivo e punti di passaggio ogni ~`stepKm` km che
+ * obbligano il percorso a seguirla. Restituisce [{ lat, lon, name, type }].
+ */
+export function gpxToStops(gpx, { max = 25, stepKm = 15 } = {}) {
+  if (!gpx || gpx.points.length < 2) return [];
+  const label = (p, i) => p.name || `Punto ${i + 1}`;
+  if (gpx.kind !== 'trk') {
+    return sampleEvenly(gpx.points, max).map((p, i) => ({ lat: p.lat, lon: p.lon, name: label(p, i), type: 'break' }));
+  }
+  const pts = gpx.points.map((p) => [p.lat, p.lon]);
+  const cum = cumulativeDistances(pts);
+  const total = cum[cum.length - 1];
+  const step = Math.max(stepKm * 1000, total / (max - 1));
+  const picked = [0];
+  for (let d = step; d < total - step / 2; d += step) {
+    let i = picked[picked.length - 1];
+    while (i < pts.length - 1 && cum[i] < d) i++;
+    picked.push(i);
+  }
+  picked.push(pts.length - 1);
+  return picked.map((i, k) => ({
+    lat: pts[i][0],
+    lon: pts[i][1],
+    name: k === 0 ? 'Partenza della traccia' : k === picked.length - 1 ? 'Arrivo della traccia' : `Passaggio ${k}`,
+    type: k === 0 || k === picked.length - 1 ? 'break' : 'through',
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Profilo altimetrico
+// ---------------------------------------------------------------------------
+
+/** Al massimo `n` punti della geometria a distanza regolare (per chiedere le quote). */
+export function resampleShape(shape, n) {
+  if (shape.length <= n) return shape.slice();
+  const cum = cumulativeDistances(shape);
+  const total = cum[cum.length - 1];
+  const out = [];
+  let seg = 1;
+  for (let i = 0; i < n; i++) {
+    const d = (total * i) / (n - 1);
+    while (seg < shape.length - 1 && cum[seg] < d) seg++;
+    const a = shape[seg - 1];
+    const b = shape[seg];
+    const len = cum[seg] - cum[seg - 1];
+    const t = len ? (d - cum[seg - 1]) / len : 0;
+    out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+  }
+  return out;
+}
+
+/**
+ * Statistiche del profilo [[distanza m, quota m], ...]: salita e discesa totali (ignorando
+ * oscillazioni sotto `noise` metri), quota minima e massima.
+ */
+export function elevationStats(profile, noise = 3) {
+  const pts = profile.filter((p) => Array.isArray(p) && Number.isFinite(p[1]));
+  if (!pts.length) return null;
+  let up = 0;
+  let down = 0;
+  let ref = pts[0][1];
+  let min = Infinity;
+  let max = -Infinity;
+  for (const [, h] of pts) {
+    min = Math.min(min, h);
+    max = Math.max(max, h);
+    // isteresi: si conta il dislivello solo quando supera il rumore del modello del terreno
+    if (h - ref >= noise) {
+      up += h - ref;
+      ref = h;
+    } else if (ref - h >= noise) {
+      down += ref - h;
+      ref = h;
+    }
+  }
+  return { up: Math.round(up), down: Math.round(down), min: Math.round(min), max: Math.round(max), length: pts[pts.length - 1][0] };
+}
