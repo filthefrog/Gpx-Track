@@ -120,6 +120,19 @@ Dettagli tecnici:
 
 Il file `.nojekyll` evita che GitHub elabori i file con Jekyll. Non serve altro: non c'è nulla da compilare.
 
+### Aggiornamenti e cache
+
+GitHub Pages lascia che il browser tenga i file in cache per qualche minuto. Per evitare che un iPhone mescoli
+file vecchi e nuovi, CSS e moduli JavaScript sono richiamati con un numero di versione (`?v=...`).
+Prima di pubblicare una modifica aggiorna il numero con:
+
+```sh
+npm run versione
+```
+
+Se dopo un aggiornamento l'app sembra quella vecchia, chiudi la scheda di Safari (o l'app dalla schermata Home)
+e riaprila.
+
 ### Aggiungerla alla schermata Home di iPhone
 
 Apri l'indirizzo in **Safari** › tasto **Condividi** › **Aggiungi alla schermata Home**. L'app si apre a tutto schermo.

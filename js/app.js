@@ -18,10 +18,10 @@ import {
   defaultTripName,
   explainValhallaError,
   cumulativeDistances,
-} from './core.js';
-import { snapsToRoad, splitPlaces } from './places.js';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js';
+} from './core.js?v=202610040850';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610040850';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610040850';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610040850';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -792,7 +792,7 @@ function showView(view) {
   const list = view === 'list';
   $('#list-editor').hidden = !list;
   $('#rows-view').hidden = list;
-  for (const r of document.querySelectorAll('input[name="stops-view"]')) r.checked = r.value === view;
+  for (const t of document.querySelectorAll('.tab')) t.setAttribute('aria-selected', String(t.dataset.view === view));
   try {
     localStorage.setItem(STORAGE_VIEW, view);
   } catch {
@@ -805,10 +805,10 @@ function showView(view) {
   }
 }
 
-document.querySelectorAll('input[name="stops-view"]').forEach((r) =>
-  r.addEventListener('change', () => {
-    showView(r.value);
-    if (r.value === 'list') $('#list-input').focus();
+document.querySelectorAll('.tab').forEach((t) =>
+  t.addEventListener('click', () => {
+    showView(t.dataset.view);
+    if (t.dataset.view === 'list') $('#list-input').focus();
   }),
 );
 

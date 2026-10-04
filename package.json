@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "collaudo": "node tests/collaudo.mjs"
+    "collaudo": "node tests/collaudo.mjs",
+    "versione": "node scripts/versione.mjs"
   }
 }
