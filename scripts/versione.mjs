@@ -12,7 +12,7 @@ const pad = (n) => String(n).padStart(2, '0');
 const version =
   process.argv[2] || `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}`;
 
-const files = ['index.html', ...readdirSync(new URL('js/', root)).filter((f) => f.endsWith('.js')).map((f) => `js/${f}`)];
+const files = ['index.html', 'sw.js', ...readdirSync(new URL('js/', root)).filter((f) => f.endsWith('.js')).map((f) => `js/${f}`)];
 for (const f of files) {
   const url = new URL(f, root);
   const before = readFileSync(url, 'utf8');
@@ -20,7 +20,9 @@ for (const f of files) {
     // import ... from './modulo.js' oppure './modulo.js?v=...'
     .replace(/(from\s+'\.\/[\w-]+\.js)(\?v=[\w.-]+)?'/g, `$1?v=${version}'`)
     // <link href="css/style.css"> e <script src="js/app.js">
-    .replace(/((?:href|src)="(?:css|js)\/[\w-]+\.(?:css|js))(\?v=[\w.-]+)?"/g, `$1?v=${version}"`);
+    .replace(/((?:href|src)="(?:css|js)\/[\w-]+\.(?:css|js))(\?v=[\w.-]+)?"/g, `$1?v=${version}"`)
+    // service worker: il nome della cache dipende dalla versione
+    .replace(/const VERSION = '[\w.-]+';/, `const VERSION = '${version}';`);
   if (after !== before) writeFileSync(url, after);
 }
 console.log(`Versione ${version}`);
