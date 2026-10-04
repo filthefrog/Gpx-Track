@@ -604,6 +604,23 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
 .roadbook li:active { background: var(--accent-soft); }
 .roadbook .km { flex: none; width: 66px; text-align: right; font-family: var(--num); font-size: 16px; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 800; }
 
+/* Link per Google Maps e Apple Mappe, una riga per tratta */
+#maps-platform { margin: 4px 0 10px; }
+#maps-platform span { font-size: 14px; }
+.maps-legs { list-style: none; margin: 10px 0; padding: 0; }
+.maps-leg { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); animation: rise 0.35s var(--ease) both; }
+.maps-leg:first-child { border-top: 0; }
+.maps-leg-num {
+  flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent); color: #fff; font-family: var(--num); font-weight: 800; font-size: 16px;
+}
+.maps-leg.opened .maps-leg-num { background: var(--field); color: var(--muted); }
+.maps-leg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.maps-leg-name { font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.maps-leg-info small { color: var(--muted); font-size: 13px; }
+.maps-leg .btn { flex: none; min-height: 40px; padding: 8px 16px; text-decoration: none; }
+.hint.small { font-size: 13px; }
+
 .export { display: flex; flex-direction: column; gap: 16px; }
 .export-item .hint { margin: 2px 0 8px; }
 #route-count { color: var(--text); }

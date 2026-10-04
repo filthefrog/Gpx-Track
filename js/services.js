@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610041317';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041317';
-import { overpassQuery, passSides } from './passes.js?v=202610041317';
+import { DEFAULT_OPTIONS, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610041326';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041326';
+import { overpassQuery, passSides } from './passes.js?v=202610041326';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const HEIGHT_URL = 'https://valhalla1.openstreetmap.de/height';
@@ -154,6 +154,18 @@ async function fetchScenic(stops, loop, options, signal) {
     warning: warning || (costing === 'auto' ? AUTO_WARNING : null),
     scenic: { segments: all.length - 1, considered, withAlternatives, extraTime },
   };
+}
+
+/**
+ * Strada "veloce" tra le tappe, come la sceglierebbero Google o Apple: profilo auto,
+ * autostrade e pedaggi ammessi. Serve solo per capire dove il giro se ne allontana
+ * (link di Google Maps e Apple Mappe). Restituisce la geometria [[lat, lon], ...].
+ */
+export async function fetchFastShape(stops, loop, signal) {
+  const options = { ...DEFAULT_OPTIONS, highways: 1, avoidTolls: false, avoidFerries: false, avoidUnpaved: true, style: 'direct' };
+  const pts = stops.map((s) => ({ ...s, type: 'break' }));
+  const res = await fetchWhole(pts, loop, options, signal, true);
+  return parseTrip(res.trip).shape;
 }
 
 async function fetchInPieces(stops, loop, options, signal, err) {

@@ -24,11 +24,13 @@ import {
   parseGpx,
   gpxToStops,
   elevationStats,
-} from './core.js?v=202610041317';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041317';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041317';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation } from './services.js?v=202610041317';
-import { startNavigation } from './navigation.js?v=202610041317';
+  stopShapeIndices,
+} from './core.js?v=202610041326';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041326';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041326';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041326';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041326';
+import { startNavigation } from './navigation.js?v=202610041326';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1397,6 +1399,7 @@ function updateDock() {
   else if (placed().length < 2) setDock('idle');
   else if ($('#route-status').classList.contains('error')) setDock('error');
   else setDock('busy');
+  renderMapsLinks();
 }
 
 function showMapStatus(text, kind = '') {
@@ -1701,6 +1704,171 @@ async function share(f) {
     return;
   }
   download(f); // il browser non può condividere file
+}
+
+// ---------------------------------------------------------------------------
+// Link per Google Maps e Apple Mappe (metodo strutturato, vedi js/legs.js)
+// ---------------------------------------------------------------------------
+
+const STORAGE_PLATFORM = 'tracceMoto.piattaforma';
+const PLATFORM_LABEL = { apple: 'Apple Mappe', 'google-mobile': 'Google Maps', 'google-desktop': 'Google Maps' };
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+let mapsPlatform = (() => {
+  try {
+    const v = localStorage.getItem(STORAGE_PLATFORM);
+    if (v && PLATFORM_LABEL[v]) return v;
+  } catch {
+    // localStorage non disponibile: si sceglie in base al dispositivo
+  }
+  return isIOS ? 'apple' : coarse ? 'google-mobile' : 'google-desktop';
+})();
+let fast = null; // { key, shape } oppure { key, failed: true }: strada veloce per il confronto
+let fastAbort = null;
+let mapsKey = '';
+const openedLegs = new Set();
+
+for (const input of document.querySelectorAll('input[name="maps-platform"]')) {
+  input.checked = input.value === mapsPlatform;
+  input.addEventListener('change', () => {
+    mapsPlatform = input.value;
+    try {
+      localStorage.setItem(STORAGE_PLATFORM, mapsPlatform);
+    } catch {
+      // non importa: la scelta vale per questa visita
+    }
+    renderMapsLinks();
+  });
+}
+$('#maps-card').addEventListener('toggle', () => renderMapsLinks());
+
+/** Tappe del giro (senza i punti dei versanti) con la distanza lungo il percorso calcolato. */
+function linkStops(r) {
+  const shape = r.parsed.shape;
+  const cum = cumulativeDistances(shape);
+  const stops = r.stops.filter((s) => !s.aux);
+  const list = r.loop ? [...stops, stops[0]] : stops;
+  const idx = stopShapeIndices(shape, list);
+  const names = exportStops().map((s) => s.name); // nomi aggiornati, se cambiati dopo il calcolo
+  return list.map((s, i) => ({
+    lat: s.lat,
+    lon: s.lon,
+    name: short((r.loop && i === list.length - 1 ? names[0] : names[i]) || s.name),
+    at: r.loop && i === list.length - 1 ? cum[cum.length - 1] : cum[idx[i]],
+  }));
+}
+
+async function loadFast(r, key) {
+  if (fastAbort) fastAbort.abort();
+  const ctrl = new AbortController();
+  fastAbort = ctrl;
+  fast = { key, loading: true };
+  try {
+    const shape = await fetchFastShape(r.stops.filter((s) => !s.aux), r.loop, ctrl.signal);
+    if (fast.key === key) fast = { key, shape };
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    console.warn('Confronto con la strada veloce non riuscito', err);
+    if (fast.key === key) fast = { key, failed: true };
+  }
+  renderMapsLinks();
+}
+
+function mapsStatus(text, kind = '') {
+  const el = $('#maps-status');
+  el.textContent = text;
+  el.className = `status ${kind}`;
+  el.hidden = !text;
+}
+
+function pointLabel(p) {
+  return p.kind === 'tappa' ? p.name : `punto al km ${formatKm(p.at / 1000).replace(/\s*km$/, '')}`;
+}
+
+function renderMapsLinks() {
+  const card = $('#maps-card');
+  if (!card) return;
+  const list = $('#maps-legs');
+  const fresh = route && routeKey === currentKey();
+  const failed = !route && $('#route-status').classList.contains('error');
+  if (!card.open) {
+    $('#maps-summary').textContent = 'Il giro diviso in tratte, un link per tratta';
+    return;
+  }
+  const opts = {
+    avoidHighways: state.options.style === 'scenic' || state.options.highways === 0,
+    avoidTolls: !!state.options.avoidTolls,
+  };
+  let points = null;
+  let note = '';
+  let kind = '';
+  let crowFly = false;
+  if (placed().length < 2) {
+    note = 'Servono almeno partenza e arrivo.';
+  } else if (fresh) {
+    if (!fast || fast.key !== routeKey) loadFast(route, routeKey);
+    if (fast.loading) {
+      note = 'Confronto con la strada più veloce…';
+      kind = 'busy';
+    } else {
+      const stops = linkStops(route);
+      const cum = cumulativeDistances(route.parsed.shape);
+      const divergent = fast.shape ? divergences(route.parsed.shape, fast.shape) : [];
+      const anchors = placeAnchors({
+        shape: route.parsed.shape,
+        stopsAt: stops.map((s) => s.at),
+        junctionsAt: route.parsed.maneuvers.map((m) => cum[m.begin] ?? 0),
+        divergent,
+      });
+      points = routePointsSequence(stops, anchors);
+      if (fast.failed) {
+        note = 'Confronto con la strada più veloce non riuscito: i punti di forzatura sono solo ogni 10 km circa.';
+        kind = 'warn';
+      }
+    }
+  } else if (failed) {
+    // modalità "solo tappe": il percorso non c'è, ma i link si possono fare lo stesso
+    const stops = exportStops().map((s) => ({ ...s, name: short(s.name) }));
+    points = stopsOnlySequence(state.loop ? [...stops, stops[0]] : stops);
+    crowFly = true;
+    note = 'Percorso non calcolato: link con le sole tappe. Google e Apple sceglieranno le strade da soli.';
+    kind = 'warn';
+  } else {
+    note = 'Calcolo del percorso…';
+    kind = 'busy';
+  }
+  const legs = points ? buildLinks(points, mapsPlatform, opts) : [];
+  const key = JSON.stringify([legs.map((l) => l.url), note]);
+  if (key === mapsKey) return;
+  mapsKey = key;
+  mapsStatus(note, kind);
+  list.textContent = '';
+  $('#maps-summary').textContent = legs.length
+    ? `${legs.length} ${legs.length === 1 ? 'tratta' : 'tratte'} · ${PLATFORM_LABEL[mapsPlatform]}`
+    : 'Il giro diviso in tratte, un link per tratta';
+  legs.forEach((leg, i) => {
+    const li = document.createElement('li');
+    li.className = 'maps-leg';
+    li.innerHTML =
+      '<span class="maps-leg-num"></span><span class="maps-leg-info"><span class="maps-leg-name"></span><small></small></span>' +
+      '<a class="btn secondary" target="_blank" rel="noopener noreferrer">Apri</a>';
+    li.querySelector('.maps-leg-num').textContent = String(i + 1);
+    li.querySelector('.maps-leg-name').textContent = `${pointLabel(leg.points[0])} → ${pointLabel(leg.points[leg.points.length - 1])}`;
+    const info = [crowFly ? `${formatKm(leg.km)} in linea d'aria` : formatKm(leg.km)];
+    if (leg.anchors) info.push(`${leg.anchors} ${leg.anchors === 1 ? 'punto' : 'punti'} di forzatura`);
+    if (leg.forced) info.push(`${leg.forced} per tenere la strada scelta`);
+    if (leg.tooLong) info.push(`link oltre i ${LINKS.GOOGLE_MAX_URL} caratteri: Google potrebbe tagliarlo`);
+    li.querySelector('small').textContent = info.join(' · ');
+    const a = li.querySelector('a');
+    a.href = leg.url;
+    a.setAttribute('aria-label', `Apri la tratta ${i + 1} in ${PLATFORM_LABEL[mapsPlatform]}`);
+    if (openedLegs.has(leg.url)) li.classList.add('opened');
+    a.addEventListener('click', () => {
+      openedLegs.add(leg.url);
+      li.classList.add('opened');
+    });
+    list.appendChild(li);
+  });
 }
 
 // ---------------------------------------------------------------------------

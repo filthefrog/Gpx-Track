@@ -22,10 +22,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041317">
+  <link rel="stylesheet" href="css/style.css?v=202610041326">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041317"></script>
+  <script type="module" src="js/app.js?v=202610041326"></script>
 </head>
 <body>
   <div class="app">
@@ -149,6 +149,27 @@
         </div>
         <p class="hint" id="result-empty">Il percorso compare qui quando ci sono almeno due tappe.</p>
       </section>
+
+      <details class="card fold" id="maps-card">
+        <summary>
+          <span class="fold-title">Apri in Google Maps o Apple Mappe</span>
+          <span class="fold-sub" id="maps-summary">Il giro diviso in tratte, un link per tratta</span>
+        </summary>
+        <div class="fold-body">
+          <div class="segmented" role="radiogroup" aria-label="Dove aprire il giro" id="maps-platform">
+            <label><input type="radio" name="maps-platform" value="apple"><span>Apple Mappe</span></label>
+            <label><input type="radio" name="maps-platform" value="google-mobile"><span>Google</span></label>
+            <label><input type="radio" name="maps-platform" value="google-desktop"><span>Google su PC</span></label>
+          </div>
+          <p class="hint" id="maps-hint">Google e Apple non leggono i GPX: ricalcolano il percorso da soli tra pochi punti.
+            Per tenerli sul tuo giro aggiungiamo dei punti di forzatura sulla strada scelta (circa ogni 10 km e dove
+            il giro lascia la strada più veloce) e dividiamo il giro in tratte. Apri una tratta alla volta.</p>
+          <p class="status" id="maps-status"></p>
+          <ol class="maps-legs" id="maps-legs"></ol>
+          <p class="hint small">Il confronto con la strada più veloce è un'approssimazione: tra un punto e l'altro
+            Google e Apple possono comunque scegliere strade diverse. Per seguire il giro esatto usa il GPX.</p>
+        </div>
+      </details>
 
       <details class="card fold" id="export-card">
         <summary>

@@ -110,6 +110,34 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 - **Percorso**: tratte con km e tempo, totale e indicazioni svolta per svolta con km progressivi (tocca una riga per
   vederla sulla mappa, «Copia le indicazioni» per il testo).
 - **Giri salvati** sul dispositivo e **link condivisibile** con lo stato del giro nell'indirizzo.
+- **Annulla / Ripeti** le modifiche alle tappe, **Inverti** il giro, **Apri un file GPX** (tappe da `wpt`/`rtept`,
+  oppure punti presi dalla traccia) nella vista «Elenco».
+- **Profilo altimetrico** con dislivello in salita e discesa e quota massima (servizio `/height` di Valhalla).
+- **Mappa «Notte (scura)»**: predefinita con il tema scuro e sempre usata in guida.
+- **Apri in Google Maps o Apple Mappe**: vedi la sezione qui sotto.
+
+## Google Maps e Apple Mappe
+
+Google Maps e Apple Mappe non importano i GPX: da un link accettano partenza, arrivo e pochi punti intermedi, poi
+ricalcolano il percorso a modo loro. Per avvicinarli al giro calcolato la scheda «Apri in Google Maps o Apple Mappe»
+usa un metodo strutturato (`js/legs.js`):
+
+1. **Punti di forzatura** sulla strada scelta: circa ogni 10 km tra due tappe e dentro ogni tratto in cui il giro si
+   allontana più di 300 m dalla strada «veloce» (profilo auto, autostrade e pedaggi ammessi, chiesta a Valhalla solo
+   quando apri la scheda). Uno nel mezzo dei tratti divergenti brevi, due (a 1/4 e 3/4) in quelli lunghi.
+2. **Mai sugli incroci**: ogni punto sta ad almeno 60 m dalle manovre, a metà del tratto di strada; i punti a meno
+   di 800 m da una tappa o tra loro si scartano.
+3. **Tratte** entro i limiti della piattaforma: Google Maps 3 punti intermedi da telefono e 9 da computer, Apple Mappe
+   3 per prudenza. Tratte consecutive condividono l'estremo e, se possibile, finiscono su una tappa.
+4. **Un link per tratta**, con km, numero di punti di forzatura e quanti servono a tenere la strada scelta. Coordinate
+   a 5 decimali (~1 m), link sotto i 2048 caratteri. Ad Apple passa anche `avoid=highways,tolls` secondo le preferenze;
+   Google non ha un parametro equivalente nei link web.
+5. **Solo tappe**: se il percorso non si può calcolare, i link si fanno lo stesso con le sole tappe (km in linea
+   d'aria) e Google o Apple scelgono le strade.
+
+Il confronto con la strada veloce è un'approssimazione: tra un punto e l'altro Google e Apple possono comunque
+scegliere strade diverse. Per il giro esatto resta il GPX. Limiti e fonti verificate sono in
+[`docs/verifiche.md`](docs/verifiche.md).
 
 ## Altri formati: Traccia e Rotta (navigatori Garmin e BMW)
 
@@ -280,11 +308,13 @@ js/nav.js               funzioni pure della navigazione: proiezione sulla tracci
 js/navigation.js        schermo di guida: GPS, voce, ricalcolo, simulazione
 js/passes.js            funzioni pure per i passi: versanti dalle strade OSM, passo completo o andata e ritorno
 js/services.js          Valhalla e Nominatim (coda a 1 richiesta al secondo)
+js/legs.js              funzioni pure dei link Google/Apple: punti di forzatura, tratte, URL
 js/app.js               interfaccia
 tests/core.test.mjs     test delle funzioni pure (Node, senza dipendenze)
 tests/places.test.mjs   test della ricerca dei luoghi
 tests/nav.test.mjs      test della navigazione (fluidità della freccia compresa)
 tests/passes.test.mjs   test dei versanti dei passi (rete stradale sintetica)
+tests/legs.test.mjs     test dei link Google Maps / Apple Mappe
 tests/collaudo.mjs      collaudo con i servizi reali
 ```
 
