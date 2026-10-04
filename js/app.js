@@ -18,10 +18,10 @@ import {
   defaultTripName,
   explainValhallaError,
   cumulativeDistances,
-} from './core.js?v=202610041208';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041208';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041208';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041208';
+} from './core.js?v=202610041215';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041215';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041215';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041215';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
