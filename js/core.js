@@ -580,6 +580,9 @@ export function parseTrip(trip) {
       maneuvers.push({
         type: m.type,
         instruction: m.instruction,
+        // frasi da leggere ad alta voce (Valhalla le prepara per la navigazione)
+        verbalAlert: m.verbal_transition_alert_instruction || '',
+        verbalPre: m.verbal_pre_transition_instruction || '',
         streetNames: m.street_names || m.begin_street_names || [],
         exitCount: m.roundabout_exit_count || 0,
         toward: signToward(m.sign),
