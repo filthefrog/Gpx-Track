@@ -97,6 +97,8 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 - **Annulla / Ripeti** le modifiche alle tappe, **Inverti** il giro, **Apri un file GPX** (tappe da `wpt`/`rtept`,
   oppure punti presi dalla traccia) nella vista «Elenco».
 - **Profilo altimetrico** con dislivello in salita e discesa e quota massima (servizio `/height` di Valhalla).
+  Si scorre col dito o col mouse (o con le frecce della tastiera): mostra km, quota e pendenza e un punto si muove
+  sulla traccia; su computer, passando col mouse sulla traccia, il cursore si muove anche sul profilo.
 - **Mappa «Notte (scura)»**: predefinita con il tema scuro.
 - **Apri in Google Maps o Apple Mappe**: vedi la sezione qui sotto.
 
@@ -110,7 +112,7 @@ Tracce Moto è un pianificatore gratuito. Si sostiene con gli annunci AdSense e 
   GPX, giro sui passi): lì compaiono gli annunci, dopo il messaggio di consenso di Google.
 - **Donazioni**: riquadro «Offrimi un caffè» nello strumento e nelle guide, visibile solo se è impostato il link.
 - Tutto si configura in `js/config.js`, poi `npm run versione` rigenera le pagine. Guida passo per passo:
-  [`docs/guadagni.md`](docs/guadagni.md). Idee per le prossime funzioni: [`docs/proposte.md`](docs/proposte.md).
+  [`docs/guadagni.md`](docs/guadagni.md). Idee per le prossime funzioni: [`docs/proposte.md`](docs/proposte.md) e [`docs/concorrenti.md`](docs/concorrenti.md).
 
 ## Google Maps e Apple Mappe
 
