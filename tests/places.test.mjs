@@ -148,6 +148,8 @@ test('splitPlaces: elenchi incollati in vari formati', () => {
   assert.deepEqual(splitPlaces('Sirolo; Stelvio; Gavia'), ['Sirolo', 'Stelvio', 'Gavia']);
   assert.deepEqual(splitPlaces('Sirolo → Stelvio → Gavia'), ['Sirolo', 'Stelvio', 'Gavia']);
   assert.deepEqual(splitPlaces('1. Sirolo\n2) Stelvio\n- Gavia'), ['Sirolo', 'Stelvio', 'Gavia']);
+  // coordinate con il punto: non sono un elenco numerato
+  assert.deepEqual(splitPlaces('Sirolo\n44.49, 11.34\nStelvio'), ['Sirolo', '44.49, 11.34', 'Stelvio']);
   // il trattino dentro un nome non divide
   assert.deepEqual(splitPlaces('Sesto San Giovanni-Nord'), ['Sesto San Giovanni-Nord']);
 });

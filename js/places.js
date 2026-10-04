@@ -1,7 +1,7 @@
 // Funzioni pure per trovare e descrivere i luoghi (risultati Nominatim).
 // Nessun accesso a rete o DOM: testate in tests/places.test.mjs.
 
-import { haversine } from './core.js?v=202610040850';
+import { haversine } from './core.js?v=202610041208';
 
 // ---------------------------------------------------------------------------
 // Coordinate scritte a mano o incollate da una mappa
@@ -241,6 +241,7 @@ export function snapsToRoad(category) {
 export function splitPlaces(text) {
   return String(text || '')
     .split(/\r?\n|;|\s+[→>–-]\s+/)
-    .map((s) => s.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim())
+    // numerazione "1. " / "2) " / "- ": serve lo spazio dopo, altrimenti "44.49, 11.34" perderebbe "44."
+    .map((s) => s.replace(/^\s*(?:\d+[.)]|[-•*])\s+/, '').trim())
     .filter(Boolean);
 }
