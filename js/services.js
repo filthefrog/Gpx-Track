@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError } from './core.js?v=202610040850';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610040850';
-import { overpassQuery, passSides } from './passes.js?v=202610040850';
+import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips } from './core.js?v=202610041208';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041208';
+import { overpassQuery, passSides } from './passes.js?v=202610041208';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
@@ -15,13 +15,28 @@ export class RouteError extends Error {
   }
 }
 
+const ROUTE_TIMEOUT = 60000;
+
 async function getJson(url, signal) {
+  // senza risposta entro un minuto si smette di aspettare (il server pubblico a volte è sovraccarico)
+  const ctrl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctrl.abort();
+  }, ROUTE_TIMEOUT);
+  const stop = () => ctrl.abort();
+  if (signal) signal.addEventListener('abort', stop);
   let res;
   try {
-    res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
   } catch (e) {
+    if (timedOut) throw new RouteError('Tempo scaduto', { timeout: true });
     if (e.name === 'AbortError') throw e;
     throw new RouteError('Errore di rete', { network: true });
+  } finally {
+    clearTimeout(timer);
+    if (signal) signal.removeEventListener('abort', stop);
   }
   let body = null;
   try {
@@ -58,8 +73,46 @@ let motorcycleRejected = false;
  * Restituisce { trip, costing, warning }.
  */
 export async function fetchRoute(stops, loop, options, signal) {
+  try {
+    return await fetchWhole(stops, loop, options, signal);
+  } catch (e) {
+    if (!isDistanceError(e)) throw e;
+    return fetchInPieces(stops, loop, options, signal, e);
+  }
+}
+
+/**
+ * Giro più lungo del limite del server (500 km in linea d'aria per la moto sul server
+ * FOSSGIS): si calcola a pezzi e si uniscono i risultati. Se una tratta da sola supera
+ * il limite, si usa il profilo auto, che ha un limite molto più alto.
+ */
+async function fetchInPieces(stops, loop, options, signal, err) {
+  const all = loop && stops.length >= 2 ? [...stops, { ...stops[0], type: 'break' }] : stops;
+  const serverLimit = distanceLimit(err) || 500000;
+  const limit = serverLimit * 0.9; // margine: il server misura in modo leggermente diverso
+  const chunks = splitForDistance(all, limit);
+  if (!chunks) {
+    // solo per questo calcolo: il profilo moto resta quello predefinito
+    const res = await fetchWhole(stops, loop, options, signal, true);
+    return {
+      ...res,
+      warning:
+        `Una tratta supera i ${Math.round(serverLimit / 1000)} km in linea d'aria, oltre il limite del profilo moto del server: il percorso è calcolato come per un'auto. Aggiungi una tappa intermedia per usare il profilo moto.`,
+    };
+  }
+  const trips = [];
+  let costing = 'motorcycle';
+  for (const [a, b] of chunks) {
+    const res = await fetchWhole(all.slice(a, b + 1), false, options, signal);
+    trips.push(res.trip);
+    if (res.costing === 'auto') costing = 'auto';
+  }
+  return { trip: mergeTrips(trips), costing, warning: costing === 'auto' ? AUTO_WARNING : null };
+}
+
+async function fetchWhole(stops, loop, options, signal, forceAuto = false) {
   const attempt = async (snap) => {
-    if (!motorcycleRejected) {
+    if (!motorcycleRejected && !forceAuto) {
       try {
         return { trip: await requestRoute(stops, loop, options, 'motorcycle', snap, signal), costing: 'motorcycle', warning: null };
       } catch (e) {

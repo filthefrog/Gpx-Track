@@ -264,6 +264,53 @@ export function valhallaUrl(base, request) {
   return `${base}?json=${encodeURIComponent(JSON.stringify(request))}`;
 }
 
+/** Vero se il giro supera la distanza massima del server per quel profilo (errore 154). */
+export function isDistanceError(err) {
+  return !!err && err.error_code === 154;
+}
+
+/** Distanza massima in metri letta dal messaggio di Valhalla ("... limit: 500000 meters"), o null. */
+export function distanceLimit(err) {
+  const m = String((err && err.error) || '').match(/limit:?\s*([\d.]+)\s*met/i);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Divide le tappe in pezzi consecutivi che stanno sotto il limite di distanza del server
+ * (Valhalla somma le distanze in linea d'aria tra le tappe). I pezzi condividono la tappa
+ * di confine. Restituisce [[inizio, fine], ...] (indici inclusi) oppure null se una
+ * singola tratta da sola supera il limite.
+ */
+export function splitForDistance(stops, maxMeters) {
+  const pts = stops.map((s) => [s.lat, s.lon]);
+  const chunks = [];
+  let start = 0;
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const hop = haversine(pts[i - 1], pts[i]);
+    if (hop > maxMeters) return null;
+    if (acc + hop > maxMeters) {
+      chunks.push([start, i - 1]);
+      start = i - 1;
+      acc = 0;
+    }
+    acc += hop;
+  }
+  chunks.push([start, pts.length - 1]);
+  return chunks;
+}
+
+/** Unisce i viaggi calcolati a pezzi in un unico viaggio Valhalla. */
+export function mergeTrips(trips) {
+  return {
+    legs: trips.flatMap((t) => t.legs),
+    summary: {
+      length: trips.reduce((a, t) => a + t.summary.length, 0),
+      time: trips.reduce((a, t) => a + t.summary.time, 0),
+    },
+  };
+}
+
 /** Vero se Valhalla non trova una strada vicino a una tappa (si può riprovare senza filtro). */
 export function isSnapError(err) {
   return !!err && (err.error_code === 170 || err.error_code === 171);
@@ -282,6 +329,15 @@ export function isCostingError(err) {
  * andato storto e cosa fare. `stops` serve a nominare le tappe.
  */
 export function explainValhallaError(err, stops = []) {
+  const msg = explainValhallaMessage(err, stops);
+  // il dettaglio tecnico aiuta a capire cosa è successo quando si chiede aiuto
+  const code = err && (err.error_code || err.status);
+  // per gli errori interni (non del server) si mostra il messaggio JavaScript
+  const raw = String((err && (err.error || (!err.network && !err.timeout && !code ? err.message : ''))) || '');
+  return code || raw ? `${msg} (Dettaglio: ${[code ? `codice ${code}` : '', raw].filter(Boolean).join(' – ')})` : msg;
+}
+
+function explainValhallaMessage(err, stops = []) {
   const code = err && err.error_code;
   const raw = String((err && (err.error || err.message)) || '');
   const hasThrough = stops.some((s, i) => i > 0 && i < stops.length - 1 && s.type === 'through');
@@ -307,11 +363,13 @@ export function explainValhallaError(err, stops = []) {
     default:
       break;
   }
+  if (err && err.timeout)
+    return 'Il server dei percorsi non ha risposto entro un minuto (probabilmente è sovraccarico). Riprova tra poco; se il giro è molto lungo dividilo in due.';
   if (err && err.status === 429)
     return 'Il server dei percorsi ha ricevuto troppe richieste. Aspetta qualche secondo e riprova.';
   if (err && err.network)
     return 'Impossibile contattare il server dei percorsi. Controlla la connessione e riprova.';
-  return `Il calcolo del percorso non è riuscito${raw ? ` (${raw})` : ''}. Riprova tra poco o modifica le tappe.`;
+  return 'Il calcolo del percorso non è riuscito. Riprova tra poco o modifica le tappe.';
 }
 
 // Tipi di manovra Valhalla

@@ -528,3 +528,21 @@ test('fixture: la partenza è dove dichiarato', () => {
   const { trip } = makeTrip();
   assert.ok(haversine(parseTrip(trip).shape[0], START) < 0.2);
 });
+
+test('splitForDistance, distanceLimit e mergeTrips: giri oltre il limite del server', async () => {
+  const { splitForDistance, distanceLimit, mergeTrips, isDistanceError } = await import('../js/core.js');
+  const err = { error_code: 154, error: 'Path distance exceeds the max distance limit: 500000 meters' };
+  assert.ok(isDistanceError(err));
+  assert.equal(distanceLimit(err), 500000);
+  assert.equal(distanceLimit({ error: 'altro' }), null);
+  // Sirolo → Bologna → Milano → Aosta: circa 700 km in linea d'aria in tutto
+  const stops = [[43.52, 13.62], [44.49, 11.34], [45.46, 9.19], [45.74, 7.32]].map(([lat, lon]) => ({ lat, lon }));
+  const chunks = splitForDistance(stops, 450000);
+  assert.deepEqual(chunks, [[0, 2], [2, 3]]);
+  // ogni pezzo sta sotto il limite e i pezzi condividono la tappa di confine
+  assert.deepEqual(splitForDistance(stops, 2e6), [[0, 3]]);
+  // una tratta singola oltre il limite non si può dividere
+  assert.equal(splitForDistance([stops[0], stops[3]], 450000), null);
+  const merged = mergeTrips([{ legs: [1, 2], summary: { length: 10, time: 100 } }, { legs: [3], summary: { length: 5, time: 50 } }]);
+  assert.deepEqual(merged, { legs: [1, 2, 3], summary: { length: 15, time: 150 } });
+});
