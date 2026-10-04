@@ -271,6 +271,23 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
 
 /* ---------- Tappe ---------- */
 
+.view-switch { margin-bottom: 10px; }
+.list-editor textarea {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--field);
+  padding: 10px 12px;
+  font-size: 16px; /* evita lo zoom automatico di iOS */
+  line-height: 1.6;
+  resize: vertical;
+  margin-bottom: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.list-editor textarea:focus { background: var(--card); border-color: var(--accent); outline: none; }
+.btn.wide { width: 100%; }
+
 .stops { list-style: none; margin: 0; padding: 0; position: relative; }
 /* linea che unisce le tappe */
 .stops::before { content: ""; position: absolute; left: 13px; top: 24px; bottom: 24px; border-left: 2px dotted var(--line); }

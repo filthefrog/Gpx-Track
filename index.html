@@ -52,6 +52,19 @@
 
       <section class="card" aria-labelledby="h-stops">
         <h2 id="h-stops" class="visually-hidden">Tappe</h2>
+        <div class="segmented view-switch" role="radiogroup" aria-label="Come inserire le tappe">
+          <label><input type="radio" name="stops-view" value="rows" checked><span>Tappe</span></label>
+          <label><input type="radio" name="stops-view" value="list"><span>Elenco</span></label>
+        </div>
+        <div id="list-editor" class="list-editor" hidden>
+          <textarea id="list-input" rows="7" autocomplete="off" autocapitalize="words" spellcheck="false"
+                    aria-label="Elenco delle località, una per riga"
+                    placeholder="Una località per riga, dalla partenza all'arrivo:&#10;Sirolo&#10;Passo dello Stelvio&#10;Passo di Gavia&#10;Ponte di Legno"></textarea>
+          <button type="button" class="btn wide" id="btn-list-apply">Calcola il percorso</button>
+          <p class="hint">Va bene anche «Sirolo → Stelvio → Gavia» o un elenco numerato. Le tappe già trovate
+            restano come sono (comprese le scelte sui passi); vengono cercate solo quelle nuove o cambiate.</p>
+        </div>
+        <div id="rows-view">
         <ol id="stops" class="stops"></ol>
         <div class="row-actions">
           <button type="button" class="btn secondary" id="btn-add">
@@ -63,8 +76,9 @@
             <span>Anello</span>
           </label>
         </div>
-        <p class="hint">Scrivi una località e premi <b>Invio</b>. Puoi incollare un elenco (una per riga),
-          coordinate o un link di Google Maps, oppure toccare la mappa.</p>
+        <p class="hint">Scrivi una località e premi <b>Invio</b>. Accetta anche coordinate e link di Google Maps,
+          oppure tocca la mappa. Per scrivere tutte le tappe insieme usa <b>Elenco</b>.</p>
+        </div>
       </section>
 
       <details class="card fold" id="prefs-card">

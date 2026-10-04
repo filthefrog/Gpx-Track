@@ -782,6 +782,58 @@ function enableDrag(handle, li) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Elenco intero: tutte le località in una casella, una per riga
+// ---------------------------------------------------------------------------
+
+const STORAGE_VIEW = 'tracceMoto.vista';
+
+function showView(view) {
+  const list = view === 'list';
+  $('#list-editor').hidden = !list;
+  $('#rows-view').hidden = list;
+  for (const r of document.querySelectorAll('input[name="stops-view"]')) r.checked = r.value === view;
+  try {
+    localStorage.setItem(STORAGE_VIEW, view);
+  } catch {
+    // non importante
+  }
+  if (list) {
+    // l'elenco parte dalle tappe attuali
+    const names = state.stops.filter((x) => x.status !== 'empty').map((x) => (x.status === 'ok' ? x.name : x.query));
+    $('#list-input').value = names.join('\n');
+  }
+}
+
+document.querySelectorAll('input[name="stops-view"]').forEach((r) =>
+  r.addEventListener('change', () => {
+    showView(r.value);
+    if (r.value === 'list') $('#list-input').focus();
+  }),
+);
+
+$('#btn-list-apply').addEventListener('click', async () => {
+  const parts = splitPlaces($('#list-input').value);
+  if (!parts.length) return toast('Scrivi almeno una località, una per riga.', true);
+  // le tappe già trovate con lo stesso nome si riusano (niente nuova ricerca, scelte sui passi comprese)
+  const pool = state.stops.filter(isPlaced);
+  const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const rows = parts.map((p) => {
+    const k = pool.findIndex((x) => same(x.name, p) || same(x.query, p));
+    return k >= 0 ? pool.splice(k, 1)[0] : { ...emptyStop(), query: p };
+  });
+  state.stops = rows;
+  showView('rows');
+  changed();
+  for (const r of rows) {
+    if (r.status === 'ok' || !state.stops.includes(r)) continue;
+    await resolveStop(r, r.query);
+  }
+  fitAll();
+  const missing = state.stops.filter((x) => x.status === 'notfound').length;
+  if (missing) toast(`${missing === 1 ? 'Una località non è stata trovata' : `${missing} località non sono state trovate`}: correggile nell'elenco delle tappe.`, true);
+});
+
 $('#btn-add').addEventListener('click', () => {
   const row = emptyStop();
   state.stops.push(row);
@@ -1333,4 +1385,10 @@ if (!loadFromHash()) {
     syncControls();
     changed({ recalc: false });
   }
+}
+// vista ricordata (dopo aver caricato il giro, così l'elenco parte dalle tappe)
+try {
+  if (localStorage.getItem(STORAGE_VIEW) === 'list') showView('list');
+} catch {
+  // vista predefinita: tappe
 }

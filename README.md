@@ -11,8 +11,8 @@ con **BMW Motorrad Connected** o con un navigatore montato sulla predisposizione
 
 ## In breve
 
-1. Scrivi la partenza e premi **Invio**: si apre subito la riga successiva. Continua così fino all'arrivo
-   (oppure incolla un elenco, una località per riga).
+1. Tocca **Elenco** e scrivi (o incolla) tutte le località in ordine, una per riga, poi **Calcola il percorso**.
+   In alternativa, nella vista **Tappe** scrivi la partenza e premi **Invio**: si apre subito la riga successiva.
 2. Sotto ogni tappa vedi cosa è stato trovato (tipo di luogo, comune, provincia). Se non è quello giusto tocca
    **Non è questo?** e scegli tra gli altri risultati.
 3. Il percorso si calcola da solo. In basso trovi km, tempo e **Scarica GPX**; l'icona accanto apre il foglio
@@ -35,6 +35,9 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 
 ## Funzioni
 
+- **Elenco intero**: nella vista «Elenco» una casella con tutte le località, una per riga (vanno bene anche
+  `A → B → C` ed elenchi numerati). Riaprendola trovi le tappe attuali; quando la modifichi vengono cercate solo
+  le località nuove o cambiate, le altre restano come sono (comprese le scelte sui passi). L'app ricorda la vista scelta.
 - **Elenco delle tappe**: ogni riga è un campo di ricerca. Si riordina trascinando la maniglia ≡, si elimina con ✕.
   «Aggiungi tappa» aggiunge una riga; «Usa la mia posizione» imposta la partenza dove ti trovi.
 - **Ricerca dei luoghi** pensata per i giri in moto:
