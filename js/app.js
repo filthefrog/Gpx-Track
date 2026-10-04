@@ -354,6 +354,43 @@ $('#search-form').addEventListener('submit', async (e) => {
   }
 });
 
+// Giro dalle località: una per riga, cercate in ordine (la coda rispetta 1 richiesta al secondo)
+$('#quick-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const names = $('#quick-input')
+    .value.split(/\n|;/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (names.length < 2) return toast('Scrivi almeno due località, una per riga (partenza e arrivo).', true);
+  if (state.stops.length && !confirm('Sostituire le tappe attuali con queste località?')) return;
+  const btn = $('#quick-btn');
+  btn.disabled = true;
+  const found = [];
+  const missing = [];
+  try {
+    for (let i = 0; i < names.length; i++) {
+      btn.textContent = `Cerco ${i + 1} di ${names.length}…`;
+      const res = await searchPlaces(names[i]);
+      if (res[0]) found.push(makeStop(res[0].lat, res[0].lon, res[0].name));
+      else missing.push(names[i]);
+    }
+  } catch (err) {
+    toast(err.message, true);
+    return;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Crea giro';
+  }
+  if (missing.length) {
+    toast(`Non trovate: ${missing.join(', ')}. Aggiungi la provincia (es. «Gavia, Sondrio») e riprova.`, true);
+    return;
+  }
+  state.stops = found;
+  changed();
+  fitAll();
+  toast(`Giro creato con ${found.length} tappe: il percorso si sta calcolando.`);
+});
+
 document.querySelectorAll('input[name="insert-mode"]').forEach((r) =>
   r.addEventListener('change', () => {
     state.insertMode = r.value;

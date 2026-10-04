@@ -11,6 +11,8 @@ con **BMW Motorrad Connected** o con un navigatore montato sulla predisposizione
 
 ## Funzioni
 
+- **Giro dalle località**: scrivi le località una per riga (es. Sirolo, Passo dello Stelvio, Passo di Gavia,
+  Ponte di Legno) e tocca «Crea giro»: le tappe vengono cercate in ordine e il percorso si calcola da solo.
 - **Tappe**: partenza, intermedie e arrivo, dalla ricerca (premi invio) o toccando la mappa.
   Ogni nuovo punto va «in fondo» oppure «come intermedia»: in questo caso viene inserito dove allunga meno il giro.
   I marker sono numerati e trascinabili; le tappe si riordinano con le frecce, si rinominano e si eliminano.
@@ -29,10 +31,21 @@ con **BMW Motorrad Connected** o con un navigatore montato sulla predisposizione
 
 | | **Traccia** (`…_traccia.gpx`) | **Rotta** (`…_rotta.gpx`) |
 |---|---|---|
-| Contenuto | un `wpt` per tappa + un `trk` con tutta la geometria del percorso | un `rte` con le tappe + un punto di passaggio 120-150 m dopo ogni svolta |
+| Contenuto | un `wpt` per tappa, un `wpt` per ogni svolta con l'istruzione, un `trk` con tutta la geometria del percorso | un `rte` con le tappe + un punto di passaggio 120-150 m dopo ogni svolta, con l'istruzione |
 | Fedeltà | massima: è la linea esatta calcolata qui | alta: il navigatore ricalcola tra un punto e l'altro, ma i punti lo costringono sulle stesse strade |
 | Indicazioni vocali | dipende dall'app/navigatore (molti seguono la linea senza indicazioni, altri la convertono in rotta) | sì, svolta per svolta, calcolate dal navigatore |
 | Quando usarla | per vedere e seguire esattamente il giro, o se l'import della rotta dà problemi | per la navigazione svolta per svolta |
+
+Dati di ogni svolta, in entrambi i file:
+
+- `name`: km progressivi, direzione e strada, breve e leggibile anche sullo schermo del navigatore
+  (`12,4 km Destra su SP5`, `31,0 km Rotonda, 2ª uscita su SS38`, `48,2 km Tieni la sinistra verso Bormio`);
+- `cmt`: l'istruzione completa di Valhalla in italiano;
+- `desc`: istruzione, direzione dei cartelli (se nota), km dalla partenza, km e tempo fino alla manovra successiva.
+
+Nella Traccia i punti delle svolte stanno sull'incrocio, così le app che mostrano i waypoint li annunciano
+in avvicinamento. Nella Rotta stanno 120-150 m dopo, già sulla strada giusta, per guidare il ricalcolo.
+Non c'è la quota: il server gratuito la fornisce solo con richieste aggiuntive.
 
 Dettagli tecnici:
 

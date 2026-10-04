@@ -200,7 +200,18 @@ input[type="text"], input[type="search"] {
   -webkit-appearance: none;
   appearance: none;
 }
-input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 10px 12px;
+  font-size: 16px;
+  resize: vertical;
+  margin-bottom: 8px;
+}
+.btn.wide { width: 100%; }
+textarea:focus-visible, input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 
 .hint { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
 

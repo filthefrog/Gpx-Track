@@ -51,6 +51,17 @@
         </label>
       </header>
 
+      <section class="card" aria-labelledby="h-quick">
+        <h2 id="h-quick">Giro dalle località</h2>
+        <form id="quick-form">
+          <textarea id="quick-input" rows="4" autocomplete="off" autocapitalize="words"
+                    aria-label="Località, una per riga"
+                    placeholder="Una località per riga, dalla partenza all'arrivo:&#10;Sirolo&#10;Passo dello Stelvio&#10;Passo di Gavia&#10;Ponte di Legno"></textarea>
+          <button type="submit" class="btn wide" id="quick-btn">Crea giro</button>
+        </form>
+        <p class="hint">Sostituisce le tappe attuali. Per ogni località uso il primo risultato della ricerca: controlla i nomi nell'elenco delle tappe.</p>
+      </section>
+
       <section class="card" aria-labelledby="h-search">
         <h2 id="h-search">Aggiungi tappe</h2>
         <form id="search-form" class="search" role="search">
@@ -116,7 +127,7 @@
           <div class="export-item">
             <div>
               <strong>Traccia</strong>
-              <p class="hint">Linea completa del percorso più le tappe. La più fedele: il navigatore segue esattamente queste strade.</p>
+              <p class="hint">Linea completa del percorso, le tappe e un punto per ogni svolta con l'istruzione (es. «12,4 km Destra su SP5»). La più fedele: segue esattamente queste strade.</p>
             </div>
             <div class="btn-row">
               <button type="button" class="btn" id="btn-track-dl" disabled>Scarica</button>
