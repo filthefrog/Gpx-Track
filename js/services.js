@@ -1,9 +1,21 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips, parseTrip, curvature, pickScenic } from './core.js?v=202610041259';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041259';
-import { overpassQuery, passSides } from './passes.js?v=202610041259';
+import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610041317';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041317';
+import { overpassQuery, passSides } from './passes.js?v=202610041317';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
+export const HEIGHT_URL = 'https://valhalla1.openstreetmap.de/height';
+
+const wait = (ms, signal) =>
+  new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    if (signal) signal.addEventListener('abort', () => (clearTimeout(t), reject(new DOMException('Annullato', 'AbortError'))), { once: true });
+  });
+
+/** Problemi passeggeri (rete, server occupato o in errore): vale la pena riprovare. */
+function transient(err) {
+  return !!err && (err.network || err.timeout || err.status === 429 || err.status >= 500);
+}
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
 export const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
@@ -48,6 +60,17 @@ async function getJson(url, signal) {
 }
 
 async function requestRoute(stops, loop, options, costing, snap, signal, alternates = 0) {
+  try {
+    return await requestRouteOnce(stops, loop, options, costing, snap, signal, alternates);
+  } catch (e) {
+    // un secondo tentativo dopo una breve pausa: il server pubblico a volte è solo occupato
+    if (!transient(e) || e.timeout) throw e;
+    await wait(1500, signal);
+    return requestRouteOnce(stops, loop, options, costing, snap, signal, alternates);
+  }
+}
+
+async function requestRouteOnce(stops, loop, options, costing, snap, signal, alternates) {
   const req = buildValhallaRequest(stops, loop, options, costing, { snap, alternates });
   const { res, body } = await getJson(valhallaUrl(VALHALLA_URL, req), signal);
   if (!res.ok || !body || !body.trip) {
@@ -202,10 +225,18 @@ async function nominatim(path, params) {
   const qs = new URLSearchParams({ format: 'jsonv2', 'accept-language': 'it', addressdetails: '1', ...params });
   return throttled(async () => {
     let res;
+    const get = () => fetch(`${NOMINATIM_URL}/${path}?${qs}`, { headers: { Accept: 'application/json' } });
     try {
-      res = await fetch(`${NOMINATIM_URL}/${path}?${qs}`, { headers: { Accept: 'application/json' } });
+      res = await get();
+      if (res.status >= 500) throw new Error('server');
     } catch {
-      throw new Error('Impossibile contattare il servizio di ricerca. Controlla la connessione e riprova.');
+      // un secondo tentativo (rispettando sempre 1 richiesta al secondo)
+      await wait(1100);
+      try {
+        res = await get();
+      } catch {
+        throw new Error('Impossibile contattare il servizio di ricerca. Controlla la connessione e riprova.');
+      }
     }
     if (res.status === 429 || res.status === 403)
       throw new Error('Il servizio di ricerca ha limitato le richieste. Aspetta un minuto e riprova.');
@@ -276,4 +307,25 @@ export async function fetchPassSides(lat, lon) {
     side.place = await townAt(side.end[0], side.end[1]).catch(() => '');
   }
   return sides;
+}
+
+// ---------------------------------------------------------------------------
+// Quote del percorso (Valhalla /height)
+// ---------------------------------------------------------------------------
+
+/**
+ * Profilo altimetrico del percorso: [[distanza m, quota m], ...] su al massimo 250 punti.
+ * Restituisce null se il servizio non risponde (il profilo è un di più, non blocca nulla).
+ */
+export async function fetchElevation(shape, signal) {
+  const pts = resampleShape(shape, 250);
+  const req = { encoded_polyline: encodePolyline(pts, 6), shape_format: 'polyline6', range: true };
+  try {
+    const { res, body } = await getJson(valhallaUrl(HEIGHT_URL, req), signal);
+    if (!res.ok || !body || !Array.isArray(body.range_height)) return null;
+    return body.range_height.filter((p) => Array.isArray(p) && p[1] != null && p[1] > -1000);
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    return null;
+  }
 }
