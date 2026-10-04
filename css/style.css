@@ -92,6 +92,7 @@ a { color: var(--accent); }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(31 107 255 / 45%); } 50% { box-shadow: 0 0 0 7px rgb(31 107 255 / 0%); } }
 @keyframes shimmer { from { transform: translateX(-120%) skewX(-20deg); } to { transform: translateX(260%) skewX(-20deg); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes flow { to { stroke-dashoffset: -32; } }
 @keyframes slide-up { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes stripe { from { background-position: 0 0; } to { background-position: 40px 0; } }
 @keyframes skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
@@ -696,7 +697,10 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
 /* frecce del verso di marcia */
 .route-arrows { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; transition: opacity 0.4s; }
 .route-arrows.hidden { display: none; }
-.route-arrow { fill: #fff; stroke: var(--route); stroke-width: 1.5; stroke-linejoin: round; filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 45%)); }
+.route-arrow { fill: none; stroke: #fff; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 1.5px rgb(0 0 0 / 70%)); }
+/* lineette che scorrono nel verso di marcia, lente (20 px al secondo) */
+.route-flow { animation: flow 1.6s linear infinite; }
+body.navigating .route-flow { display: none; }
 
 .via-ghost {
   width: 34px;

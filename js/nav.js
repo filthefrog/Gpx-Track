@@ -5,7 +5,7 @@
 // all'altro: avanza lungo il binario alla velocità stimata e si riallinea dolcemente
 // quando arriva il dato nuovo (dead reckoning vincolato alla traccia).
 
-import { haversine, cumulativeDistances } from './core.js?v=202610041257';
+import { haversine, cumulativeDistances } from './core.js?v=202610041259';
 
 const RAD = Math.PI / 180;
 

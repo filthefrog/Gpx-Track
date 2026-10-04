@@ -65,8 +65,9 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 - **Pannello abbassabile**: tocca o trascina in giù la levetta in cima al pannello (oppure il pulsante ↕ sulla
   mappa): la mappa occupa tutto lo schermo e resta solo la barra con km, tempo e «Scarica GPX». Trascinala in su
   o toccala di nuovo per riaprire le opzioni.
-- **Verso di marcia**: sul percorso scorrono lentamente delle frecce bianche nella direzione del giro (ferme se
-  sull'iPhone è attivo «Riduci movimento»).
+- **Verso di marcia**: sul percorso scorrono lentamente delle lineette bianche con qualche freccetta «›» distanziata,
+  nella direzione del giro. Le freccette seguono il verso generale della traccia (calcolato su un tratto di ~70 pixel),
+  non ogni singola curva, così sui tornanti non girano a scatti. Ferme se sull'iPhone è attivo «Riduci movimento».
 - **Navigazione** (pulsante verde **Vai** nella barra in basso): schermo di guida in stile CarPlay, sempre leggibile:
   in alto la prossima manovra con freccia grande, distanza e strada, e la manovra dopo; in basso orario di arrivo,
   tempo e km che mancano, velocità; pulsanti grandi **Esci**, **Centra**, **Percorso** (vista d'insieme), **Voce**.

@@ -1,7 +1,7 @@
 // Schermo di guida "stile CarPlay": posizione GPS sul percorso, freccia fluida, voce, ricalcolo.
-import { parseTrip, stopShapeIndices, formatDuration } from './core.js?v=202610041257';
-import { buildRouteIndex, projectOnRoute, pointAtDistance, progress, Tracker, easeAngle, formatDistance, maneuverIcon, spokenAlert, NAV } from './nav.js?v=202610041257';
-import { fetchRoute } from './services.js?v=202610041257';
+import { parseTrip, stopShapeIndices, formatDuration } from './core.js?v=202610041259';
+import { buildRouteIndex, projectOnRoute, pointAtDistance, progress, Tracker, easeAngle, formatDistance, maneuverIcon, spokenAlert, NAV } from './nav.js?v=202610041259';
+import { fetchRoute } from './services.js?v=202610041259';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);

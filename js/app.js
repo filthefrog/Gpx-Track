@@ -21,11 +21,11 @@ import {
   curvature,
   nearestShapeIndex,
   routeInsertIndex,
-} from './core.js?v=202610041257';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041257';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041257';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041257';
-import { startNavigation } from './navigation.js?v=202610041257';
+} from './core.js?v=202610041259';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041259';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041259';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041259';
+import { startNavigation } from './navigation.js?v=202610041259';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -129,6 +129,8 @@ const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyV
 const routeCasing = L.polyline([], { color: cssVar('--route-casing'), weight: 10, opacity: 0.9, interactive: false, lineCap: 'round' }).addTo(map);
 const routeLine = L.polyline([], { color: cssVar('--route'), weight: 6, opacity: 1, interactive: false, lineCap: 'round', className: 'route-line' }).addTo(map);
 // fascia invisibile più larga della linea: rende facile toccare il percorso col dito
+// lineette che scorrono lungo il percorso (stessa velocità delle frecce, vedi .route-flow)
+const routeFlow = L.polyline([], { color: '#ffffff', weight: 2, opacity: 0.8, dashArray: '2 14', interactive: false, className: 'route-flow' }).addTo(map);
 const routeHit = L.polyline([], { color: '#000', weight: 28, opacity: 0, interactive: true, className: 'route-hit' }).addTo(map);
 let viaGhost = null;
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1153,6 +1155,7 @@ function clearRoute() {
   routeLine.setLatLngs([]);
   routeCasing.setLatLngs([]);
   routeHit.setLatLngs([]);
+  routeFlow.setLatLngs([]);
   layoutArrows();
   removeGhost();
   if (maneuverMarker) maneuverMarker.remove();
@@ -1163,6 +1166,7 @@ function drawRoute() {
   routeLine.setLatLngs(route.parsed.shape);
   routeCasing.setLatLngs(route.parsed.shape);
   routeHit.setLatLngs(route.parsed.shape);
+  routeFlow.setLatLngs(route.parsed.shape);
   animateRoute();
   const b = routeLine.getBounds();
   if (b.isValid() && !map.getBounds().contains(b)) map.fitBounds(b, { padding: [30, 30] });
@@ -1177,9 +1181,10 @@ function drawRoute() {
 // ---------------------------------------------------------------------------
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const ARROW_SPEED = 38; // pixel al secondo: lente, per leggere il verso
-const ARROW_GAP = 90; // distanza tra le frecce in pixel
-const ARROW_MAX = 90;
+const ARROW_SPEED = 20; // pixel al secondo, come le lineette (32 px in 1,6 s)
+const ARROW_GAP = 150; // poche frecce, distanziate: indicano il verso senza affollare
+const ARROW_MAX = 60;
+const ARROW_SPAN = 36; // il verso si guarda su ±36 px di traccia: segue la direzione generale, non ogni curva
 map.createPane('arrows');
 const arrowPane = map.getPane('arrows');
 arrowPane.style.zIndex = '450';
@@ -1207,7 +1212,7 @@ function layoutArrows() {
   const count = Math.min(ARROW_MAX + 1, Math.ceil(total / gap) + 1);
   while (arrowEls.length < count) {
     const el = document.createElementNS(SVG_NS, 'path');
-    el.setAttribute('d', 'M-6.5,-7 L6.5,0 L-6.5,7 L-3,0 Z');
+    el.setAttribute('d', 'M-4.5,-6 L3.5,0 L-4.5,6'); // freccetta abbozzata
     el.setAttribute('class', 'route-arrow');
     arrowSvg.appendChild(el);
     arrowEls.push(el);
@@ -1221,21 +1226,34 @@ function placeArrows(t) {
   if (!arrowGeo) return;
   const { pts, cum, total, gap } = arrowGeo;
   const offset = reduceMotion ? gap / 2 : ((t / 1000) * ARROW_SPEED) % gap;
-  let seg = 1;
+  // punto della linea (in pixel) alla distanza d, con ricerca binaria
+  const at = (d) => {
+    const x = Math.max(0, Math.min(total, d));
+    let lo = 1;
+    let hi = pts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cum[mid] < x) lo = mid + 1;
+      else hi = mid;
+    }
+    const a = pts[lo - 1];
+    const b = pts[lo];
+    const k = (x - cum[lo - 1]) / (cum[lo] - cum[lo - 1] || 1);
+    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+  };
   arrowEls.forEach((el, i) => {
     const d = offset + i * gap;
-    if (d >= total) {
+    if (d < ARROW_SPAN || d > total - ARROW_SPAN) {
       el.style.display = 'none';
       return;
     }
-    while (seg < pts.length - 1 && cum[seg] < d) seg++;
-    const a = pts[seg - 1];
-    const b = pts[seg];
-    const len = cum[seg] - cum[seg - 1] || 1;
-    const k = (d - cum[seg - 1]) / len;
-    const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+    const p = at(d);
+    // verso generale: dal punto ARROW_SPAN px prima a quello ARROW_SPAN px dopo
+    const back = at(d - ARROW_SPAN);
+    const fwd = at(d + ARROW_SPAN);
+    const angle = (Math.atan2(fwd.y - back.y, fwd.x - back.x) * 180) / Math.PI;
     el.style.display = '';
-    el.setAttribute('transform', `translate(${(a.x + (b.x - a.x) * k).toFixed(1)},${(a.y + (b.y - a.y) * k).toFixed(1)}) rotate(${angle.toFixed(1)})`);
+    el.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)}) rotate(${angle.toFixed(1)})`);
   });
 }
 
