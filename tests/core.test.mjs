@@ -546,3 +546,20 @@ test('splitForDistance, distanceLimit e mergeTrips: giri oltre il limite del ser
   const merged = mergeTrips([{ legs: [1, 2], summary: { length: 10, time: 100 } }, { legs: [3], summary: { length: 5, time: 50 } }]);
   assert.deepEqual(merged, { legs: [1, 2, 3], summary: { length: 15, time: 150 } });
 });
+
+test('routeInsertIndex: un passaggio toccato sul percorso va nel tratto giusto', async () => {
+  const { routeInsertIndex, stopShapeIndices, nearestShapeIndex } = await import('../js/core.js');
+  const { trip, stops } = makeTrip();
+  const p = parseTrip(trip);
+  const idx = stopShapeIndices(p.shape, stops);
+  assert.equal(idx[0], 0);
+  assert.equal(idx[2], p.shape.length - 1);
+  assert.ok(idx[1] > 0 && idx[1] < idx[2]);
+  // un punto nella prima tratta va tra partenza e tappa intermedia, uno nella seconda dopo la tappa
+  assert.equal(routeInsertIndex(p.shape, stops, Math.floor(idx[1] / 2)), 1);
+  assert.equal(routeInsertIndex(p.shape, stops, idx[1] + 3), 2);
+  // anello: dopo l'ultima tappa, prima del ritorno
+  assert.equal(routeInsertIndex(p.shape, stops.slice(0, 2), idx[1] + 3), 2);
+  const k = 40;
+  assert.equal(nearestShapeIndex(p.shape, [p.shape[k][0] + 0.00001, p.shape[k][1]]), k);
+});

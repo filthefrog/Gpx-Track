@@ -203,6 +203,57 @@ export function bestInsertionIndex(stops, point, loop = false) {
   return best;
 }
 
+/** Indice del punto della geometria più vicino a p. */
+export function nearestShapeIndex(shape, p) {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < shape.length; i++) {
+    const d = haversine(p, shape[i]);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/**
+ * Indice della geometria in cui il percorso passa da ogni tappa (cercando sempre in avanti:
+ * in un anello la partenza e l'arrivo coincidono ma stanno ai due estremi).
+ */
+export function stopShapeIndices(shape, stops) {
+  const out = [];
+  let from = 0;
+  stops.forEach((s, i) => {
+    if (i === 0) {
+      out.push(0);
+      return;
+    }
+    let best = from;
+    let bestD = Infinity;
+    for (let k = from; k < shape.length; k++) {
+      const d = haversine([s.lat, s.lon], shape[k]);
+      if (d < bestD) {
+        bestD = d;
+        best = k;
+      }
+    }
+    out.push(best);
+    from = best;
+  });
+  return out;
+}
+
+/**
+ * Dove inserire un nuovo passaggio toccato sul percorso al punto `k` della geometria:
+ * restituisce l'indice per `stops.splice(i, 0, nuovo)` (subito dopo l'ultima tappa già superata).
+ */
+export function routeInsertIndex(shape, stops, k) {
+  const idx = stopShapeIndices(shape, stops);
+  for (let i = 1; i < stops.length; i++) if (idx[i] >= k) return i;
+  return stops.length; // dopo l'ultima tappa (in un anello: prima del ritorno alla partenza)
+}
+
 // Paesi e passi trovati con la ricerca vanno agganciati a una strada vera:
 // senza filtro Valhalla può partire da un vialetto o da una carrareccia vicina al centro.
 const ROAD_FILTER = { min_road_class: 'residential' };
