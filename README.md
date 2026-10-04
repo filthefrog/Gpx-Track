@@ -191,6 +191,11 @@ Consigli:
   non fosse disponibile l'app usa `auto` e lo segnala.
 - **Nominatim**: al massimo 1 richiesta al secondo e niente autocompletamento (per questo la ricerca parte solo con invio).
   Un uso intenso può essere bloccato temporaneamente.
+- **Giri lunghi**: il profilo moto del server ha un limite di distanza in linea d'aria per richiesta (di solito 500 km).
+  Se il giro lo supera, l'app lo calcola automaticamente a pezzi e li unisce; se una singola tratta da sola supera
+  il limite, quella volta usa il profilo auto e lo segnala (aggiungi una tappa intermedia per restare sul profilo moto).
+- **Errori**: se il percorso non si può calcolare compare un avviso rosso sulla mappa; il dettaglio (con il codice
+  dell'errore del server) è nella scheda «Percorso». Senza risposta entro un minuto l'app smette di aspettare.
 - **Overpass** (`overpass-api.de`, per i versanti dei passi): server pubblico che a volte è occupato; in quel
   caso l'app lo dice e si può riprovare. Una sola richiesta per passo, solo quando scegli «Completo» o «Andata e ritorno».
 - **Tile CARTO, OpenStreetMap e OpenTopoMap**: pensati per un uso leggero (CARTO è gratuito per uso non commerciale). OpenTopoMap arriva al massimo allo zoom 17
