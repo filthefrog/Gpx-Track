@@ -161,8 +161,10 @@ map.on('click', (e) => {
   let name = null;
   const popup = L.popup({ maxWidth: 260, minWidth: 220 }).setLatLng(e.latlng).setContent(box).openOn(map);
   btn.addEventListener('click', () => {
-    addStop(makeStop(lat, lng, name));
+    const stop = makeStop(lat, lng, name);
+    addStop(stop);
     map.closePopup(popup);
+    if (!name) nameFromMap(stop); // il nome non era ancora arrivato
   });
   reverseGeocode(lat, lng)
     .then((n) => {
