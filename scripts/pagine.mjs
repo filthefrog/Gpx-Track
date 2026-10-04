@@ -38,14 +38,25 @@ const pages = readdirSync(new URL('contenuti/', root))
   })
   .sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.path.localeCompare(b.path));
 
-function adUnit(slot) {
-  if (!ads) return '';
-  // senza ID dell'unità: gli annunci automatici scelgono da soli dove metterli
-  if (!slot) return '';
-  return `<aside class="ad" aria-label="Pubblicità"><span class="ad-label">Pubblicità</span>
+const slots = { top: '', article: '', bottom: '', side: '', tool: '', ...(CONFIG.adSlots || {}) };
+const toolAds = !!(ads && CONFIG.toolAds);
+if (toolAds && !slots.tool) throw new Error('toolAds attivo: serve l\'ID di un\'unità in adSlots.tool');
+
+/** Unità pubblicitaria. Senza ID dell'unità non si scrive nulla: ci pensano gli annunci automatici. */
+function adUnit(slot, cls = '') {
+  if (!ads || !slot) return '';
+  return `<aside class="ad${cls ? ` ${cls}` : ''}" aria-label="Pubblicità"><span class="ad-label">Pubblicità</span>
   <ins class="adsbygoogle" style="display:block" data-ad-client="${ads}" data-ad-slot="${esc(slot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>
   <script>(adsbygoogle = window.adsbygoogle || []).push({});</script></aside>`;
 }
+
+// collegamenti anticipati ai server degli annunci: il primo annuncio arriva prima
+const AD_HEAD = (client) => `
+  <meta name="google-adsense-account" content="${client}">
+  <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+  <link rel="preconnect" href="https://googleads.g.doubleclick.net" crossorigin>
+  <link rel="preconnect" href="https://tpc.googlesyndication.com" crossorigin>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}" crossorigin="anonymous"></script>`;
 
 function render(page) {
   const up = '../'.repeat(page.path.split('/').length - 1);
@@ -58,8 +69,18 @@ function render(page) {
   body = CONFIG.donateUrl
     ? body.replace(/<!--se-donazioni-->|<!--fine-donazioni-->/g, '')
     : body.replace(/<!--se-donazioni-->[\s\S]*?<!--fine-donazioni-->/g, '');
-  let n = 0;
-  body = body.replace(/<!--annuncio-->/g, () => (withAds ? adUnit(n++ === 0 ? CONFIG.adSlots.article : CONFIG.adSlots.bottom) : ''));
+  // testi diversi se gli annunci compaiono anche nello strumento (privacy)
+  body = toolAds
+    ? body.replace(/<!--se-strumento-senza-annunci-->[\s\S]*?<!--fine-strumento-senza-annunci-->/g, '').replace(/<!--(?:se|fine)-strumento-con-annunci-->/g, '')
+    : body.replace(/<!--se-strumento-con-annunci-->[\s\S]*?<!--fine-strumento-con-annunci-->/g, '').replace(/<!--(?:se|fine)-strumento-senza-annunci-->/g, '');
+  // posizioni degli annunci: dopo l'introduzione, nei punti <!--annuncio--> del testo, in fondo
+  if (withAds) {
+    const top = adUnit(slots.top);
+    body = /<\/section>/.test(body) ? body.replace(/<\/section>/, `</section>\n${top}`) : body.replace(/(<p class="lead">[\s\S]*?<\/p>)/, `$1\n${top}`);
+    body = `${body}\n${adUnit(slots.bottom)}`;
+  }
+  body = body.replace(/<!--annuncio-->/g, () => (withAds ? adUnit(slots.article) : ''));
+  const side = withAds ? adUnit(slots.side, 'ad-side') : '';
   const canonical = `${CONFIG.siteUrl}/${page.path.replace(/index\.html$/, '')}`;
   const donate = CONFIG.donateUrl
     ? `<a class="nav-donate" href="${esc(CONFIG.donateUrl)}" target="_blank" rel="noopener">Offrimi un caffè</a>`
@@ -82,20 +103,13 @@ function render(page) {
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <link rel="icon" href="${up}icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="${up}icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="${up}css/sito.css?v=${VERSION}">${
-    withAds
-      ? `
-  <meta name="google-adsense-account" content="${ads}">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ads}" crossorigin="anonymous"></script>`
-      : ''
-  }
+  <link rel="stylesheet" href="${up}css/sito.css?v=${VERSION}">${withAds ? AD_HEAD(ads) : ''}
 </head>
 <body>
   <header class="site-top">
     <a class="site-brand" href="${up}./">
       <img src="${up}icons/icon.svg" alt="" width="28" height="28">
       <span>Tracce Moto</span>
-     
     </a>
     <nav class="site-nav" aria-label="Sito">
       <a href="${up}guide/">Guide</a>
@@ -103,9 +117,11 @@ function render(page) {
       <a class="nav-cta" href="${up}./">Pianifica</a>
     </nav>
   </header>
+  <div class="layout${side ? ' with-side' : ''}">
   <main class="page${page.wide ? ' wide' : ''}">
 ${body.trim()}
-  </main>
+  </main>${side ? `\n  ${side}` : ''}
+  </div>
   <footer class="site-foot">
     <nav aria-label="Pagine">
       <a href="${up}./">Pianifica un giro</a>
@@ -124,13 +140,27 @@ ${body.trim()}
 
 for (const page of pages) write(page.path, render(page));
 
-// strumento: solo il meta di verifica del sito per AdSense (nessuno script, nessun annuncio, nessun cookie)
+// strumento (index.html). Di regola solo il meta di verifica del sito: nessuno script, annuncio o cookie.
+// Con toolAds attivo: codice AdSense, un'unità sotto la scheda «Percorso» e la CSP disattivata,
+// perché AdSense non funziona con una CSP a elenco di domini (servirebbero nonce, impossibili su un sito statico).
 {
-  const html = read('index.html').replace(/\n  <meta name="google-adsense-account" content="[^"]*">/, '');
-  write(
-    'index.html',
-    ads ? html.replace(/(\n  <meta name="referrer"[^>]*>)/, `$1\n  <meta name="google-adsense-account" content="${ads}">`) : html,
-  );
+  let html = read('index.html')
+    .replace(/\n  <meta name="google-adsense-account" content="[^"]*">/, '')
+    .replace(/\n  <link rel="preconnect" href="https:\/\/[^"]*(?:googlesyndication|doubleclick)[^"]*" crossorigin>/g, '')
+    .replace(/\n  <script async src="https:\/\/pagead2\.googlesyndication\.com[^"]*" crossorigin="anonymous"><\/script>/, '')
+    .replace(/<!-- CSP disattivata[^\n]*?(<meta http-equiv="Content-Security-Policy"[^>]*>) -->/, '$1')
+    .replace(/(<!--annuncio-strumento-->)[\s\S]*?(<!--\/annuncio-strumento-->)/, '$1$2');
+  if (ads && !toolAds) html = html.replace(/(\n  <meta name="referrer"[^>]*>)/, `$1\n  <meta name="google-adsense-account" content="${ads}">`);
+  if (toolAds) {
+    html = html
+      .replace(/(\n  <meta name="referrer"[^>]*>)/, `$1${AD_HEAD(ads)}`)
+      .replace(/(<meta http-equiv="Content-Security-Policy"[^>]*>)/, '<!-- CSP disattivata: annunci nello strumento attivi (toolAds in js/config.js) $1 -->')
+      .replace(
+        /(<!--annuncio-strumento-->)(<!--\/annuncio-strumento-->)/,
+        `$1<aside class="card ad tool-ad" aria-label="Pubblicità"><span class="ad-label">Pubblicità</span><ins class="adsbygoogle" style="display:block" data-ad-client="${ads}" data-ad-slot="${esc(slots.tool)}" data-ad-format="auto" data-full-width-responsive="true"></ins></aside>$2`,
+      );
+  }
+  write('index.html', html);
 }
 
 // sitemap e robots
@@ -148,4 +178,4 @@ write('robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${CONFIG.siteUrl}/sitem
 // ads.txt: va nella radice del dominio (vedi docs/guadagni.md); qui è pronto da copiare
 if (ads) write('ads.txt', `google.com, ${ads.replace(/^ca-/, '')}, DIRECT, f08c47fec0942fa0\n`);
 
-console.log(`${pages.length} pagine${ads ? ' con annunci' : ' (annunci non configurati)'}${CONFIG.donateUrl ? ', donazioni attive' : ''}.`);
+console.log(`${pages.length} pagine${ads ? ' con annunci' : ' (annunci non configurati)'}${toolAds ? ', annunci anche nello strumento' : ''}${CONFIG.donateUrl ? ', donazioni attive' : ''}.`);

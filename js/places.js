@@ -1,7 +1,7 @@
 // Funzioni pure per trovare e descrivere i luoghi (risultati Nominatim).
 // Nessun accesso a rete o DOM: testate in tests/places.test.mjs.
 
-import { haversine } from './core.js?v=202610041722';
+import { haversine } from './core.js?v=202610041736';
 
 // ---------------------------------------------------------------------------
 // Coordinate scritte a mano o incollate da una mappa

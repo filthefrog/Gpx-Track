@@ -21,10 +21,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041722">
+  <link rel="stylesheet" href="css/style.css?v=202610041736">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041722"></script>
+  <script type="module" src="js/app.js?v=202610041736"></script>
 </head>
 <body>
   <header class="site-top">
@@ -159,6 +159,8 @@
         <p class="hint" id="result-empty">Il percorso compare qui quando ci sono almeno due tappe.</p>
       </section>
 
+      <!--annuncio-strumento--><!--/annuncio-strumento-->
+
       <details class="card fold" id="maps-card">
         <summary>
           <span class="fold-title">Apri in Google Maps o Apple Mappe</span>
@@ -177,6 +179,26 @@
           <ol class="maps-legs" id="maps-legs"></ol>
           <p class="hint small">Il confronto con la strada più veloce è un'approssimazione: tra un punto e l'altro
             Google e Apple possono comunque scegliere strade diverse. Per seguire il giro esatto usa il GPX.</p>
+        </div>
+      </details>
+
+      <details class="card fold" id="rally-card">
+        <summary>
+          <span class="fold-title">Roadbook da rally</span>
+          <span class="fold-sub">Tulipani, distanze e CAP, da stampare o per l'app</span>
+        </summary>
+        <div class="fold-body">
+          <p class="hint">Caselle come nei roadbook FIA/FIM: distanza totale e parziale al centesimo di km, tulipano, CAP
+            e note. Da stampare su strisce larghe 148,5 mm per il porta-roadbook o su fogli A4, oppure come GPX
+            OpenRally per le app e i dispositivi da roadbook.</p>
+          <div class="btn-row">
+            <button type="button" class="btn" id="btn-rb-open" disabled>Roadbook del giro</button>
+            <label class="btn secondary file-btn">Converti un GPX
+              <input type="file" id="rb-file" accept=".gpx,application/gpx+xml,application/xml,text/xml"></label>
+          </div>
+          <p class="hint small">Il GPX può essere turn by turn (Tracce Moto, OsmAnd) oppure una semplice traccia: in quel
+            caso le svolte si ricavano dalla forma della strada e conviene ricontrollare le caselle.
+            <a href="guide/roadbook-rally.html">Come si legge un roadbook</a></p>
         </div>
       </details>
 
@@ -279,6 +301,32 @@
         </button>
       </div>
     </main>
+  </div>
+
+  <!-- roadbook da rally: anteprima e stampa -->
+  <div id="rb-view" class="rb-view" hidden role="dialog" aria-modal="true" aria-labelledby="rb-title">
+    <div class="rb-bar">
+      <div class="rb-head">
+        <strong id="rb-title">Roadbook</strong>
+        <span id="rb-info"></span>
+      </div>
+      <div class="rb-controls">
+        <div class="segmented" role="radiogroup" aria-label="Formato di stampa">
+          <label><input type="radio" name="rb-format" value="strip" checked><span>Rotolo 148,5</span></label>
+          <label><input type="radio" name="rb-format" value="a4"><span>A4</span></label>
+        </div>
+        <div class="segmented" role="radiogroup" aria-label="Ordine delle caselle">
+          <label><input type="radio" name="rb-order" value="down" checked><span>Dall'alto</span></label>
+          <label><input type="radio" name="rb-order" value="up"><span>Dal basso</span></label>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn" id="rb-print">Stampa o PDF</button>
+          <button type="button" class="btn secondary" id="rb-gpx">GPX OpenRally</button>
+          <button type="button" class="btn ghost" id="rb-close">Chiudi</button>
+        </div>
+      </div>
+    </div>
+    <div class="rb-pages" id="rb-pages"></div>
   </div>
 
   <div id="toast" class="toast" role="alert" hidden></div>

@@ -101,6 +101,10 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
   sulla traccia; su computer, passando col mouse sulla traccia, il cursore si muove anche sul profilo.
 - **Mappa «Notte (scura)»**: predefinita con il tema scuro.
 - **Apri in Google Maps o Apple Mappe**: vedi la sezione qui sotto.
+- **Roadbook da rally**: dal giro calcolato o da un GPX (turn by turn di Tracce Moto o OsmAnd, oppure una semplice
+  traccia) a un roadbook in stile FIA/FIM: caselle con distanza totale e parziale al centesimo, tulipano, CAP e note.
+  Stampa su strisce da 148,5 mm (rotolo da porta-roadbook) o su A4, oppure GPX **OpenRally** v1.0.3 (validato con
+  lo schema ufficiale) per app e dispositivi da roadbook. Requisiti e limiti: [`docs/roadbook.md`](docs/roadbook.md).
 
 ## Sito, annunci e donazioni
 
@@ -309,11 +313,13 @@ scripts/pagine.mjs      genera guide/, privacy.html, info.html, sostieni.html, s
 js/passes.js            funzioni pure per i passi: versanti dalle strade OSM, passo completo o andata e ritorno
 js/services.js          Valhalla e Nominatim (coda a 1 richiesta al secondo)
 js/legs.js              funzioni pure dei link Google/Apple: punti di forzatura, tratte, URL
+js/roadbook.js          funzioni pure del roadbook da rally: caselle, tulipani, OpenRally, lettura dei GPX
 js/app.js               interfaccia
 tests/core.test.mjs     test delle funzioni pure (Node, senza dipendenze)
 tests/places.test.mjs   test della ricerca dei luoghi
 tests/passes.test.mjs   test dei versanti dei passi (rete stradale sintetica)
 tests/legs.test.mjs     test dei link Google Maps / Apple Mappe
+tests/roadbook.test.mjs test del roadbook (con validazione OpenRally via xmllint, schemi in tests/openrally/)
 tests/collaudo.mjs      collaudo con i servizi reali
 ```
 

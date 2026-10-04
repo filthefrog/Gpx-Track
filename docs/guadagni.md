@@ -87,14 +87,43 @@ consenso di Google stesso:
 
 Non serve un altro banner: lo strumento non usa cookie e non carica il codice di Google.
 
-## 6. Annunci: dove e come
+## 6. Annunci: dove e come (ottimizzazione)
 
-- **Solo nelle guide**, mai nello strumento: è la regola del progetto, e AdSense non ammette annunci su schermate
-  senza contenuti dell'editore.
-- Il modo più semplice: attiva gli **annunci automatici** per il sito in AdSense. Compaiono solo dove c'è il
-  codice, cioè nelle guide.
-- In alternativa crea due unità «display» e metti i loro ID in `adSlots.article` e `adSlots.bottom`: compaiono
-  nei punti `<!--annuncio-->` delle pagine in `contenuti/`, con l'etichetta «Pubblicità».
+**Dove compaiono.** Le guide hanno quattro posizioni pronte, oltre agli annunci automatici:
+
+| Posizione (`adSlots`) | Dove | Perché |
+| --- | --- | --- |
+| `top` | subito dopo l'introduzione | è visibile senza scorrere: di solito è la posizione che rende di più |
+| `article` | nei punti `<!--annuncio-->` del testo | a metà lettura, quando l'attenzione è alta |
+| `bottom` | in fondo alla guida | chi arriva in fondo è interessato |
+| `side` | colonna laterale fissa, solo su schermi larghi (≥ 1100 px) | sui computer resta visibile mentre si legge |
+
+Per ognuna crea in AdSense un'unità «display» adattabile e incolla l'ID in `js/config.js`. Le posizioni senza ID
+restano vuote (e non occupano spazio). In alternativa, o in aggiunta, attiva gli **annunci automatici** e, tra i
+formati, quelli **ancorati** (barra in basso sul telefono) e **vignette** (a pagina intera tra una pagina e l'altra):
+sono i formati che sui telefoni rendono di più e non toccano la grafica del sito.
+
+Ottimizzazioni già fatte: spazio riservato per ogni annuncio (la pagina non «salta», e Google premia le pagine
+stabili), collegamento anticipato ai server degli annunci (`preconnect`), annunci che spariscono se Google non ha
+niente da mostrare, etichetta «Pubblicità» ben visibile (richiesta dalle regole).
+
+**Annunci nello strumento (`toolAds`).** Spento di regola, come chiede il documento di progetto. Si può accendere in
+`js/config.js` (serve anche `adSlots.tool`): compare un annuncio sotto la scheda «Percorso», lontano dai pulsanti
+e dalla mappa. Prima di accenderlo considera che:
+
+- lo strumento è la pagina più usata: più annunci visti, più guadagno;
+- AdSense vieta annunci su schermate senza contenuti dell'editore e vicino ai pulsanti (clic accidentali): la
+  posizione scelta è tra i risultati, ma la valutazione finale è di Google (**DA VERIFICARE** con la revisione);
+- la protezione **CSP** dello strumento va disattivata (lo fa il generatore): AdSense non funziona con una CSP a
+  elenco di domini, e un sito statico non può usare la variante con nonce;
+- anche nello strumento comparirà il messaggio di consenso cookie di Google, e l'informativa privacy cambia da sola.
+
+Consiglio: parti con gli annunci **solo nelle guide** e attiva quelli automatici ancorati; valuta `toolAds` dopo
+qualche settimana di dati.
+
+**Il guadagno viene dalle visite alle guide.** Ogni guida nuova è una pagina in più con annunci e una porta da
+Google. Le prossime da scrivere: «Giri consigliati» (un giro per pagina, con GPX), roadbook e rally, passi alpini
+uno per uno. Aggiungi la `sitemap.xml` in Google Search Console.
 
 Cose da non fare mai (fanno chiudere l'account): cliccare sui tuoi annunci, chiedere di cliccarli, mettere
 annunci vicino ai pulsanti dello strumento, cambiare il codice degli annunci.

@@ -1,9 +1,11 @@
 <!--{"path": "privacy.html", "order": 20, "ads": false, "title": "Privacy e cookie", "description": "Quali dati usa Tracce Moto, quali servizi esterni contatta, come funzionano annunci e cookie e come cancellare i tuoi dati."}-->
 <span class="kicker">Informativa</span>
 <h1>Privacy e cookie</h1>
-<p class="lead">In breve: lo strumento per pianificare i giri non ha account, non usa cookie e non ha annunci.
+<!--se-strumento-senza-annunci--><p class="lead">In breve: lo strumento per pianificare i giri non ha account, non usa cookie e non ha annunci.
   Le tappe e i giri salvati restano sul tuo dispositivo. Gli annunci compaiono solo nelle pagine delle guide e solo
-  dopo che hai fatto la tua scelta sui cookie.</p>
+  dopo che hai fatto la tua scelta sui cookie.</p><!--fine-strumento-senza-annunci-->
+<!--se-strumento-con-annunci--><p class="lead">In breve: niente account. Le tappe e i giri salvati restano sul tuo dispositivo. Il sito,
+  strumento compreso, mostra annunci di Google: i cookie per gli annunci si usano solo dopo la tua scelta.</p><!--fine-strumento-con-annunci-->
 
 <h2>Chi gestisce il sito</h2>
 <p>Il titolare del trattamento è {{owner}}. Per domande sulla privacy o per esercitare i tuoi diritti puoi scrivere
@@ -11,7 +13,7 @@
 
 <h2>Lo strumento «Pianifica»</h2>
 <ul>
-  <li><strong>Niente account e niente cookie.</strong> Le tappe, i giri salvati e le preferenze sono nella memoria
+  <li><strong>Niente account<!--se-strumento-senza-annunci--> e niente cookie<!--fine-strumento-senza-annunci-->.</strong> Le tappe, i giri salvati e le preferenze sono nella memoria
     del browser (localStorage) del tuo dispositivo. Non arrivano a noi. Il pulsante «Cancella tutti i miei dati»,
     nella scheda Privacy dell'app, li elimina.</li>
   <li><strong>Servizi esterni.</strong> Per funzionare il browser contatta direttamente questi servizi, che ricevono
@@ -32,8 +34,8 @@
     a Google o ad Apple, secondo le loro informative.</li>
 </ul>
 
-<h2>Le guide e gli annunci</h2>
-<p>Le pagine delle guide possono mostrare annunci di Google AdSense. Google e i suoi partner possono usare cookie e
+<h2>Gli annunci</h2>
+<p><!--se-strumento-senza-annunci-->Le pagine delle guide possono mostrare<!--fine-strumento-senza-annunci--><!--se-strumento-con-annunci-->Le pagine del sito, strumento compreso, possono mostrare<!--fine-strumento-con-annunci--> annunci di Google AdSense. Google e i suoi partner possono usare cookie e
   identificatori per mostrare annunci, anche personalizzati, e per misurarli. Nell'Unione europea, nel Regno Unito e
   in Svizzera ti viene chiesto il consenso con un messaggio di Google prima di usare cookie per annunci
   personalizzati: puoi rifiutare, e cambiare idea in qualsiasi momento dal link del messaggio stesso.</p>

@@ -8,7 +8,13 @@ export const CONFIG = Object.freeze({
   // ID editore AdSense, es. 'ca-pub-1234567890123456' (AdSense › Account › Informazioni sull'account)
   adsenseClient: '',
   // ID delle unità pubblicitarie (AdSense › Annunci › Per unità pubblicitaria). Vuoti = solo annunci automatici.
-  adSlots: { article: '', bottom: '' },
+  // top: dopo l'introduzione delle guide · article: nel testo · bottom: in fondo · side: colonna laterale
+  // fissa sui computer · tool: nello strumento (solo con toolAds)
+  adSlots: { top: '', article: '', bottom: '', side: '', tool: '' },
+  // Annunci anche nello strumento, sotto la scheda «Percorso». Spento di regola: lo strumento resta senza
+  // cookie e con la protezione CSP. Acceso: più guadagno, ma CSP disattivata e consenso cookie anche lì.
+  // Vedi docs/guadagni.md prima di attivarlo.
+  toolAds: false,
   // Pagina per le donazioni, es. 'https://ko-fi.com/tuonome' oppure 'https://paypal.me/tuonome'
   donateUrl: '',
   // Chi gestisce il sito, per l'informativa privacy (nome e cognome o ragione sociale)
