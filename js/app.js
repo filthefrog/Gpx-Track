@@ -25,12 +25,14 @@ import {
   gpxToStops,
   elevationStats,
   stopShapeIndices,
-} from './core.js?v=202610041712';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041712';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041712';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041712';
-import { CONFIG } from './config.js?v=202610041712';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041712';
+  profileAt,
+  pointAtDistance,
+} from './core.js?v=202610041717';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041717';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041717';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041717';
+import { CONFIG } from './config.js?v=202610041717';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041717';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1271,6 +1273,7 @@ function clearRoute() {
   routeFlow.setLatLngs([]);
   layoutArrows();
   removeGhost();
+  hideElevCursor();
   if (maneuverMarker) maneuverMarker.remove();
   renderResult();
 }
@@ -1579,35 +1582,125 @@ function renderHero() {
 function renderElevation() {
   const box = $('#route-elevation');
   const el = route && route.elevation;
+  hideElevCursor();
   box.hidden = !el;
   if (!el) return;
   const prof = el.profile;
   const W = 320;
-  const H = 86;
+  const H = 100;
   const total = prof[prof.length - 1][0] || 1;
   const min = el.stats.min;
   const span = Math.max(50, el.stats.max - min);
   const x = (d) => ((d / total) * W).toFixed(1);
   const y = (h) => (H - 6 - ((h - min) / span) * (H - 14)).toFixed(1);
+  el.y = (h) => (H - 6 - ((h - min) / span) * (H - 14)) / H; // per il cursore (0-1)
   const line = prof.map(([d, h], i) => `${i ? 'L' : 'M'}${x(d)},${y(h)}`).join('');
   const top = prof.reduce((a, b) => (b[1] > a[1] ? b : a));
-  const n = (v) => v.toLocaleString('it-IT');
+  const n = (v) => Math.round(v).toLocaleString('it-IT');
   box.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-      <defs><linearGradient id="elev-fill" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="var(--accent)" stop-opacity="0.45"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0.02"/>
-      </linearGradient></defs>
-      <path d="${line}L${W},${H}L0,${H}Z" fill="url(#elev-fill)"/>
-      <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
-      <circle cx="${x(top[0])}" cy="${y(top[1])}" r="3.5" fill="var(--hot)"/>
-    </svg>
+    <div class="elev-read" aria-live="polite">Scorri sul profilo: il punto si muove sulla mappa</div>
+    <div class="elev-plot">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+        <path d="${line}L${W},${H}L0,${H}Z" fill="var(--accent)" fill-opacity="0.12"/>
+        <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+      </svg>
+      <span class="elev-top" style="left:${((top[0] / total) * 100).toFixed(2)}%;top:${(el.y(top[1]) * 100).toFixed(2)}%"></span>
+      <span class="elev-x" hidden></span>
+      <span class="elev-dot" hidden></span>
+    </div>
     <div class="elev-legend">
       <span>↑ <b>${n(el.stats.up)} m</b></span>
       <span>↓ <b>${n(el.stats.down)} m</b></span>
       <span>max <b>${n(el.stats.max)} m</b></span>
       <span>min <b>${n(el.stats.min)} m</b></span>
     </div>`;
+  bindElevPlot(box.querySelector('.elev-plot'));
 }
+
+// ---------------------------------------------------------------------------
+// Profilo scorrevole: il dito (o il mouse) sul profilo muove un punto sulla traccia, e viceversa
+// ---------------------------------------------------------------------------
+
+let elevMarker = null;
+
+/** Mostra quota, pendenza e posizione alla frazione f (0-1) del giro. */
+function showElevAt(f, { pan = false } = {}) {
+  const el = route && route.elevation;
+  if (!el) return;
+  f = Math.max(0, Math.min(1, f));
+  const prof = el.profile;
+  const { h, grade } = profileAt(prof, f * prof[prof.length - 1][0]);
+  const shape = route.parsed.shape;
+  if (!route.cum) route.cum = cumulativeDistances(shape);
+  const p = pointAtDistance(shape, route.cum, f * route.cum[route.cum.length - 1]);
+  if (!elevMarker) {
+    elevMarker = L.circleMarker(p, { radius: 7, color: '#fff', weight: 3, fillColor: '#16181d', fillOpacity: 1, interactive: false, pane: 'markerPane' }).addTo(map);
+  } else elevMarker.setLatLng(p);
+  if (pan) map.panInside(p, { padding: [40, 40], animate: false });
+  const box = $('#route-elevation');
+  const xl = box.querySelector('.elev-x');
+  const dot = box.querySelector('.elev-dot');
+  if (!xl) return;
+  xl.hidden = false;
+  dot.hidden = false;
+  xl.style.left = `${f * 100}%`;
+  dot.style.left = `${f * 100}%`;
+  dot.style.top = `${el.y(h) * 100}%`;
+  const g = Math.round(grade);
+  const km = formatKm(f * route.parsed.summary.length);
+  box.querySelector('.elev-read').innerHTML = `<b>${km}</b> · quota <b>${Math.round(h).toLocaleString('it-IT')} m</b> · pendenza <b class="${Math.abs(g) >= 10 ? 'steep' : ''}">${g > 0 ? '+' : ''}${g}%</b>`;
+}
+
+function hideElevCursor() {
+  if (elevMarker) elevMarker.remove();
+  elevMarker = null;
+  const box = $('#route-elevation');
+  for (const sel of ['.elev-x', '.elev-dot']) {
+    const e = box.querySelector(sel);
+    if (e) e.hidden = true;
+  }
+}
+
+function bindElevPlot(plot) {
+  let dragging = false;
+  const at = (e) => {
+    const r = plot.getBoundingClientRect();
+    return (e.clientX - r.left) / r.width;
+  };
+  plot.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    plot.setPointerCapture(e.pointerId);
+    showElevAt(at(e), { pan: true });
+  });
+  plot.addEventListener('pointermove', (e) => {
+    if (dragging || e.pointerType === 'mouse') showElevAt(at(e), { pan: dragging });
+  });
+  const end = () => (dragging = false);
+  plot.addEventListener('pointerup', end);
+  plot.addEventListener('pointercancel', end);
+  // col mouse il punto sparisce uscendo dal profilo; col dito resta dove lo si lascia
+  plot.addEventListener('pointerleave', (e) => {
+    if (e.pointerType === 'mouse' && !dragging) hideElevCursor();
+  });
+}
+
+// passando col mouse sulla traccia il cursore si muove anche sul profilo
+let elevHoverFrame = 0;
+routeHit.on('mousemove', (e) => {
+  if (!route || !route.elevation) return;
+  cancelAnimationFrame(elevHoverFrame);
+  elevHoverFrame = requestAnimationFrame(() => {
+    if (!route || !route.elevation) return;
+    const shape = route.parsed.shape;
+    if (!route.cum) route.cum = cumulativeDistances(shape);
+    const k = nearestShapeIndex(shape, [e.latlng.lat, e.latlng.lng]);
+    showElevAt(route.cum[k] / route.cum[route.cum.length - 1]);
+  });
+});
+routeHit.on('mouseout', () => {
+  cancelAnimationFrame(elevHoverFrame);
+  hideElevCursor();
+});
 
 function renderCurves() {
   const box = $('#route-curves');

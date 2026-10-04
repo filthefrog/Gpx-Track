@@ -50,3 +50,28 @@ test('resampleShape ed elevationStats: profilo altimetrico', () => {
   assert.equal(s.max, 1999); // in cima l'oscillazione di prova vale -1
   assert.equal(elevationStats([]), null);
 });
+
+test('profileAt: quota interpolata e pendenza media', async () => {
+  const { profileAt } = await import('../js/core.js');
+  // salita costante del 10% per 1 km, poi piano
+  const prof = [[0, 100], [500, 150], [1000, 200], [2000, 200]];
+  const a = profileAt(prof, 250);
+  assert.equal(a.h, 125);
+  assert.ok(Math.abs(a.grade - 10) < 1e-9);
+  assert.equal(profileAt(prof, 1600).grade, 0);
+  // fuori dal profilo si resta agli estremi
+  assert.equal(profileAt(prof, -50).h, 100);
+  assert.equal(profileAt(prof, 5000).h, 200);
+});
+
+test('pointAtDistance: punto alla distanza lungo la geometria', async () => {
+  const { pointAtDistance, cumulativeDistances } = await import('../js/core.js');
+  const shape = [[45, 10], [45, 10.01], [45, 10.02]];
+  const cum = cumulativeDistances(shape);
+  const mid = pointAtDistance(shape, cum, cum[2] / 2);
+  assert.ok(Math.abs(mid[1] - 10.01) < 1e-6);
+  assert.deepEqual(pointAtDistance(shape, cum, -1), shape[0]);
+  assert.deepEqual(pointAtDistance(shape, cum, cum[2] + 10), shape[2]);
+  const q = pointAtDistance(shape, cum, cum[1] * 0.25);
+  assert.ok(Math.abs(q[1] - 10.0025) < 1e-6);
+});

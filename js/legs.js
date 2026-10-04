@@ -5,7 +5,7 @@
 // poi ricalcolano il percorso a modo loro. Per tenerli sul giro voluto si aggiungono dei
 // "punti di forzatura" (anchor) sulla strada scelta e si divide il giro in tratte, una per link.
 
-import { haversine, cumulativeDistances } from './core.js?v=202610041712';
+import { haversine, cumulativeDistances } from './core.js?v=202610041717';
 
 // Tutte le costanti in un posto solo (limiti verificati il 4/10/2026, vedi docs/verifiche.md)
 export const LINKS = Object.freeze({

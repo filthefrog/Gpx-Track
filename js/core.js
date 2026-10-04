@@ -1303,6 +1303,52 @@ export function resampleShape(shape, n) {
   return out;
 }
 
+/** Quota alla distanza d del profilo [[distanza m, quota m], ...] (interpolazione lineare). */
+function heightAt(profile, d) {
+  let lo = 0;
+  let hi = profile.length - 1;
+  if (d <= profile[0][0]) return profile[0][1];
+  if (d >= profile[hi][0]) return profile[hi][1];
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (profile[mid][0] <= d) lo = mid;
+    else hi = mid;
+  }
+  const [d0, h0] = profile[lo];
+  const [d1, h1] = profile[hi];
+  return d1 > d0 ? h0 + ((h1 - h0) * (d - d0)) / (d1 - d0) : h0;
+}
+
+/**
+ * Quota e pendenza media (%) alla distanza d del profilo; la pendenza si misura su ±`window`
+ * metri, così il rumore del modello del terreno non dà pendenze assurde.
+ */
+export function profileAt(profile, d, window = 150) {
+  const total = profile[profile.length - 1][0];
+  const x = Math.max(0, Math.min(total, d));
+  const a = Math.max(0, x - window);
+  const b = Math.min(total, x + window);
+  const grade = b > a ? ((heightAt(profile, b) - heightAt(profile, a)) / (b - a)) * 100 : 0;
+  return { d: x, h: heightAt(profile, x), grade };
+}
+
+/** Punto [lat, lon] alla distanza d lungo la geometria (`cum` = cumulativeDistances(shape)). */
+export function pointAtDistance(shape, cum, d) {
+  const total = cum[cum.length - 1];
+  if (d <= 0 || shape.length < 2) return shape[0];
+  if (d >= total) return shape[shape.length - 1];
+  let lo = 0;
+  let hi = cum.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (cum[mid] <= d) lo = mid;
+    else hi = mid;
+  }
+  const len = cum[hi] - cum[lo];
+  const t = len ? (d - cum[lo]) / len : 0;
+  return [shape[lo][0] + (shape[hi][0] - shape[lo][0]) * t, shape[lo][1] + (shape[hi][1] - shape[lo][1]) * t];
+}
+
 /**
  * Statistiche del profilo [[distanza m, quota m], ...]: salita e discesa totali (ignorando
  * oscillazioni sotto `noise` metri), quota minima e massima.
