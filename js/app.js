@@ -21,11 +21,14 @@ import {
   curvature,
   nearestShapeIndex,
   routeInsertIndex,
-} from './core.js?v=202610041259';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041259';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041259';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js?v=202610041259';
-import { startNavigation } from './navigation.js?v=202610041259';
+  parseGpx,
+  gpxToStops,
+  elevationStats,
+} from './core.js?v=202610041317';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041317';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041317';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation } from './services.js?v=202610041317';
+import { startNavigation } from './navigation.js?v=202610041317';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -106,17 +109,30 @@ const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
     '(<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
 });
 
-const LAYERS = { 'Stradale (nitida)': voyager, OpenStreetMap: osm, 'Topografica (OpenTopoMap)': topo };
+// Notte: CARTO Dark Matter, anch'essa @2x; usata col tema scuro e durante la guida
+const night = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 20,
+  subdomains: 'abcd',
+  attribution:
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+});
+
+const LAYERS = { 'Stradale (nitida)': voyager, 'Notte (scura)': night, OpenStreetMap: osm, 'Topografica (OpenTopoMap)': topo };
 const STORAGE_LAYER = 'tracceMoto.mappa';
-let startLayer = voyager;
+const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+let startLayer = prefersDark ? night : voyager;
 try {
-  startLayer = LAYERS[localStorage.getItem(STORAGE_LAYER)] || voyager;
+  startLayer = LAYERS[localStorage.getItem(STORAGE_LAYER)] || startLayer;
 } catch {
-  // memoria del browser non disponibile: si usa lo stradale
+  // memoria del browser non disponibile: mappa secondo il tema
 }
+let currentBase = startLayer;
+let switchingBase = false; // cambio fatto dall'app (guida), da non ricordare come scelta
 const map = L.map('map', { zoomControl: true, layers: [startLayer] }).setView([45.2, 11.5], 6);
 L.control.layers(LAYERS, null, { position: 'topright' }).addTo(map);
 map.on('baselayerchange', (e) => {
+  currentBase = e.layer;
+  if (switchingBase) return;
   try {
     localStorage.setItem(STORAGE_LAYER, e.name);
   } catch {
@@ -964,6 +980,36 @@ $('#btn-list-apply').addEventListener('click', async () => {
   if (missing) toast(`${missing === 1 ? 'Una località non è stata trovata' : `${missing} località non sono state trovate`}: correggile nell'elenco delle tappe.`, true);
 });
 
+// Apri un file GPX (rotta, waypoint o traccia di un'altra app)
+$('#gpx-file').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  let gpx = null;
+  try {
+    gpx = parseGpx(await file.text());
+  } catch {
+    gpx = null;
+  }
+  const stops = gpxToStops(gpx);
+  if (!stops.length) return toast('Il file non contiene un GPX leggibile con almeno due punti.', true);
+  state.stops = stops.map((s) => placedStop(s.lat, s.lon, s.name, { type: s.type, context: 'Da file GPX' }));
+  if (!state.name.trim() && gpx.name) {
+    state.name = gpx.name;
+    $('#trip-name').value = gpx.name;
+  }
+  showView('rows');
+  changed();
+  fitAll();
+  toast(
+    gpx.kind === 'trk'
+      ? stops.length > 2
+        ? `Traccia importata: il percorso la segue passando da ${stops.length - 2} punti intermedi.`
+        : 'Traccia importata: partenza e arrivo (è corta, non servono punti intermedi).'
+      : `Importate ${stops.length} tappe${gpx.points.length > stops.length ? ` (su ${gpx.points.length}, a intervalli regolari)` : ''}.`,
+  );
+});
+
 $('#btn-add').addEventListener('click', () => {
   const row = emptyStop();
   state.stops.push(row);
@@ -1068,11 +1114,78 @@ function exportStops() {
 }
 
 /** Da chiamare a ogni modifica. */
+// ---------------------------------------------------------------------------
+// Annulla / Ripeti
+// ---------------------------------------------------------------------------
+
+const undoStack = [];
+const redoStack = [];
+let current = null; // { key, data }: stato attuale delle tappe
+let restoring = false;
+
+/** Ciò che conta per annullare: posizioni, tipi, passi, anello (non i nomi che arrivano dopo). */
+function historyKey(data) {
+  return JSON.stringify([data.loop, data.stops.map((s) => [s.lat, s.lon, s.type, s.pass ? [s.pass.mode, s.pass.up, s.pass.down] : 0])]);
+}
+
+function trackHistory() {
+  const data = { loop: state.loop, stops: snapshot().stops };
+  const key = historyKey(data);
+  if (current && key !== current.key && !restoring) {
+    undoStack.push(current.data);
+    if (undoStack.length > 60) undoStack.shift();
+    redoStack.length = 0;
+  }
+  current = { key, data };
+  $('#btn-undo').disabled = !undoStack.length;
+  $('#btn-redo').disabled = !redoStack.length;
+}
+
+function restoreHistory(data) {
+  restoring = true;
+  state.loop = data.loop;
+  $('#opt-loop').checked = state.loop;
+  state.stops = data.stops.map((x) =>
+    placedStop(x.lat, x.lon, x.name, { type: x.type, snap: !!x.snap, context: x.context || '', kind: x.kind || '', ...(x.pass ? { pass: JSON.parse(JSON.stringify(x.pass)) } : {}) }),
+  );
+  changed();
+  restoring = false;
+}
+
+$('#btn-undo').addEventListener('click', () => {
+  if (!undoStack.length) return;
+  redoStack.push(current.data);
+  restoreHistory(undoStack.pop());
+  trackHistory();
+  toast('Modifica annullata.');
+});
+$('#btn-redo').addEventListener('click', () => {
+  if (!redoStack.length) return;
+  undoStack.push(current.data);
+  restoreHistory(redoStack.pop());
+  trackHistory();
+});
+
+// Inverti: lo stesso giro al contrario
+$('#btn-reverse').addEventListener('click', () => {
+  const list = placed();
+  if (list.length < 2) return toast('Servono almeno due tappe per invertire il giro.', true);
+  const empties = state.stops.filter((s) => !isPlaced(s));
+  for (const s of list) {
+    // in un passo "completo" si sale da dove prima si scendeva
+    if (s.pass && s.pass.mode === 'full' && s.pass.sides) [s.pass.up, s.pass.down] = [s.pass.down, s.pass.up];
+  }
+  state.stops = [...list.reverse(), ...empties];
+  changed();
+  toast('Giro invertito: si parte dall\'ultima tappa.');
+});
+
 function changed({ recalc = true } = {}) {
   renderStops();
   renderMarkers();
   $('#prefs-summary').textContent = prefsSummary();
   persist();
+  trackHistory();
   renderResult();
   if (recalc) scheduleRecalc();
 }
@@ -1131,6 +1244,7 @@ async function recalc() {
   drawRoute();
   showMapStatus('');
   setStatus(res.warning || '', res.warning ? 'warn' : '');
+  loadElevation(seq);
   try {
     checkCrossings();
     renderResult();
@@ -1403,6 +1517,8 @@ function renderResult() {
     legs.appendChild(li);
   }
 
+  renderHero();
+  renderElevation();
   renderCurves();
 
   const pts = buildRoutePoints(p, route.stops.filter((x) => !x.aux), route.loop);
@@ -1425,6 +1541,74 @@ function renderResult() {
 }
 
 /** Curve del percorso (gradi per km e tornanti) e, in panoramica, cosa è stato scelto. */
+// ---------------------------------------------------------------------------
+// Numeri principali e profilo altimetrico
+// ---------------------------------------------------------------------------
+
+async function loadElevation(seq) {
+  const r = route;
+  if (!r) return;
+  const profile = await fetchElevation(r.parsed.shape).catch(() => null);
+  if (route !== r || seq !== recalcSeq || !profile || profile.length < 2) return;
+  r.elevation = { profile, stats: elevationStats(profile) };
+  renderHero();
+  renderElevation();
+}
+
+function renderHero() {
+  const box = $('#route-hero');
+  box.textContent = '';
+  if (!route) return;
+  const p = route.parsed;
+  const e = route.elevation && route.elevation.stats;
+  const items = [
+    [formatKm(p.summary.length).replace(' km', ''), 'km'],
+    [formatDuration(p.summary.time).replace(' min', '′').replace(' h ', 'h '), 'tempo'],
+    e ? [e.up.toLocaleString('it-IT'), 'm di salita'] : [String(turnByTurnInstructions(p).length), 'indicazioni'],
+  ];
+  for (const [value, label] of items) {
+    const el = document.createElement('div');
+    el.innerHTML = '<b></b><span></span>';
+    el.querySelector('b').textContent = value;
+    el.querySelector('span').textContent = label;
+    box.appendChild(el);
+  }
+}
+
+/** Profilo altimetrico disegnato in SVG, con salita, discesa e quote estreme. */
+function renderElevation() {
+  const box = $('#route-elevation');
+  const el = route && route.elevation;
+  box.hidden = !el;
+  if (!el) return;
+  const prof = el.profile;
+  const W = 320;
+  const H = 86;
+  const total = prof[prof.length - 1][0] || 1;
+  const min = el.stats.min;
+  const span = Math.max(50, el.stats.max - min);
+  const x = (d) => ((d / total) * W).toFixed(1);
+  const y = (h) => (H - 6 - ((h - min) / span) * (H - 14)).toFixed(1);
+  const line = prof.map(([d, h], i) => `${i ? 'L' : 'M'}${x(d)},${y(h)}`).join('');
+  const top = prof.reduce((a, b) => (b[1] > a[1] ? b : a));
+  const n = (v) => v.toLocaleString('it-IT');
+  box.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="elev-fill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--accent)" stop-opacity="0.45"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0.02"/>
+      </linearGradient></defs>
+      <path d="${line}L${W},${H}L0,${H}Z" fill="url(#elev-fill)"/>
+      <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+      <circle cx="${x(top[0])}" cy="${y(top[1])}" r="3.5" fill="var(--hot)"/>
+    </svg>
+    <div class="elev-legend">
+      <span>↑ <b>${n(el.stats.up)} m</b></span>
+      <span>↓ <b>${n(el.stats.down)} m</b></span>
+      <span>max <b>${n(el.stats.max)} m</b></span>
+      <span>min <b>${n(el.stats.min)} m</b></span>
+    </div>`;
+}
+
 function renderCurves() {
   const box = $('#route-curves');
   box.textContent = '';
@@ -1541,6 +1725,14 @@ function beginNavigation(simulate) {
   if (!exportReady() || navigation) return;
   map.closePopup();
   removeGhost();
+  // in guida la mappa scura stanca meno la vista, come su CarPlay
+  const before = currentBase;
+  if (before !== night) {
+    switchingBase = true;
+    map.removeLayer(before);
+    night.addTo(map);
+    switchingBase = false;
+  }
   navigation = startNavigation({
     map,
     route,
@@ -1556,6 +1748,12 @@ function beginNavigation(simulate) {
     },
     onExit: () => {
       navigation = null;
+      if (before !== night) {
+        switchingBase = true;
+        map.removeLayer(night);
+        before.addTo(map);
+        switchingBase = false;
+      }
       if (route) drawRoute();
       setTimeout(fitAll, 120);
     },

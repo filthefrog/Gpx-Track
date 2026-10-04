@@ -22,10 +22,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041259">
+  <link rel="stylesheet" href="css/style.css?v=202610041317">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041259"></script>
+  <script type="module" src="js/app.js?v=202610041317"></script>
 </head>
 <body>
   <div class="app">
@@ -77,6 +77,10 @@
                     aria-label="Elenco delle località, una per riga"
                     placeholder="Una località per riga, dalla partenza all'arrivo:&#10;Sirolo&#10;Passo dello Stelvio&#10;Passo di Gavia&#10;Ponte di Legno"></textarea>
           <button type="button" class="btn wide" id="btn-list-apply">Calcola il percorso</button>
+          <label class="btn secondary wide file-btn">
+            <input type="file" id="gpx-file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            Apri un file GPX</label>
           <p class="hint">Va bene anche «Sirolo → Stelvio → Gavia» o un elenco numerato. Le tappe già trovate
             restano come sono (comprese le scelte sui passi); vengono cercate solo quelle nuove o cambiate.</p>
         </div>
@@ -87,11 +91,19 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             Aggiungi tappa
           </button>
-          <label class="switch compact">
-            <input type="checkbox" id="opt-loop">
-            <span>Anello</span>
-          </label>
+          <div class="tool-row">
+            <button type="button" class="icon-btn tool" id="btn-undo" disabled aria-label="Annulla" title="Annulla">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+            <button type="button" class="icon-btn tool" id="btn-redo" disabled aria-label="Ripeti" title="Ripeti">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+            <button type="button" class="icon-btn tool" id="btn-reverse" aria-label="Inverti il percorso" title="Inverti il percorso">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg></button>
+          </div>
         </div>
+        <label class="switch compact loop-switch">
+          <input type="checkbox" id="opt-loop">
+          <span>Anello: torna alla partenza</span>
+        </label>
         <p class="hint">Scrivi una località e premi <b>Invio</b>. Accetta anche coordinate e link di Google Maps,
           oppure tocca la mappa. Per scrivere tutte le tappe insieme usa <b>Elenco</b>.</p>
         </div>
@@ -125,6 +137,8 @@
         <h2 id="h-result">Percorso</h2>
         <div id="route-status" class="status" role="status" aria-live="polite"></div>
         <div id="route-summary" hidden>
+          <div class="hero" id="route-hero"></div>
+          <div class="elevation" id="route-elevation" hidden></div>
           <div class="curves" id="route-curves"></div>
           <ol id="legs" class="legs"></ol>
           <details class="inner-fold" id="roadbook-fold">

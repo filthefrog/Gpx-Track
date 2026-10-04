@@ -1,6 +1,6 @@
 // Service worker di Tracce Moto: app disponibile offline e mappa già vista in cache.
 // VERSION viene aggiornata da `npm run versione` insieme ai ?v= di CSS e moduli.
-const VERSION = '202610041259';
+const VERSION = '202610041317';
 const SHELL = `tracce-shell-${VERSION}`;
 const TILES = 'tracce-mappa-v1';
 const MAX_TILES = 1500;
@@ -21,6 +21,8 @@ const ASSETS = [
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
+  'fonts/saira-condensed-latin-600-normal.woff2',
+  'fonts/saira-condensed-latin-800-normal.woff2',
 ];
 
 // servizi delle tile: si conservano le porzioni di mappa già viste
