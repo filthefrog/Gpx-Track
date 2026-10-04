@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips } from './core.js?v=202610041228';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041228';
-import { overpassQuery, passSides } from './passes.js?v=202610041228';
+import { buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips, parseTrip, curvature, pickScenic } from './core.js?v=202610041243';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041243';
+import { overpassQuery, passSides } from './passes.js?v=202610041243';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
@@ -47,8 +47,8 @@ async function getJson(url, signal) {
   return { res, body };
 }
 
-async function requestRoute(stops, loop, options, costing, snap, signal) {
-  const req = buildValhallaRequest(stops, loop, options, costing, { snap });
+async function requestRoute(stops, loop, options, costing, snap, signal, alternates = 0) {
+  const req = buildValhallaRequest(stops, loop, options, costing, { snap, alternates });
   const { res, body } = await getJson(valhallaUrl(VALHALLA_URL, req), signal);
   if (!res.ok || !body || !body.trip) {
     throw new RouteError((body && body.error) || `HTTP ${res.status}`, {
@@ -57,7 +57,8 @@ async function requestRoute(stops, loop, options, costing, snap, signal) {
       error: body && body.error,
     });
   }
-  return body.trip;
+  // le alternative arrivano solo se richieste e se il server le trova
+  return { trip: body.trip, alternates: (body.alternates || []).map((a) => a.trip).filter(Boolean) };
 }
 
 const AUTO_WARNING =
@@ -73,6 +74,7 @@ let motorcycleRejected = false;
  * Restituisce { trip, costing, warning }.
  */
 export async function fetchRoute(stops, loop, options, signal) {
+  if (options && options.style === 'scenic') return fetchScenic(stops, loop, options, signal);
   try {
     return await fetchWhole(stops, loop, options, signal);
   } catch (e) {
@@ -86,6 +88,51 @@ export async function fetchRoute(stops, loop, options, signal) {
  * FOSSGIS): si calcola a pezzi e si uniscono i risultati. Se una tratta da sola supera
  * il limite, si usa il profilo auto, che ha un limite molto più alto.
  */
+/**
+ * Percorso panoramico: per ogni tratto tra due tappe si chiedono al server fino a 3 percorsi
+ * (Valhalla dà le alternative solo tra due punti), se ne misurano le curve e si tiene il più
+ * ricco di curve tra quelli che costano al massimo il 40% di tempo in più del più veloce.
+ * Autostrade sempre evitate; sterrato secondo le preferenze.
+ */
+async function fetchScenic(stops, loop, options, signal) {
+  const all = loop && stops.length >= 2 ? [...stops, { ...stops[0], type: 'break' }] : stops;
+  const trips = [];
+  let considered = 0;
+  let extraTime = 0;
+  let withAlternatives = 0;
+  let costing = 'motorcycle';
+  let warning = null;
+  for (let i = 1; i < all.length; i++) {
+    const pair = [{ ...all[i - 1], type: 'break' }, { ...all[i], type: 'break' }];
+    let res;
+    try {
+      res = await fetchWhole(pair, false, options, signal, false, 2);
+    } catch (e) {
+      if (!isDistanceError(e)) throw e;
+      res = await fetchWhole(pair, false, options, signal, true, 2);
+      warning = `Una tratta supera il limite di distanza del profilo moto: è calcolata come per un'auto. Aggiungi una tappa intermedia.`;
+    }
+    if (res.costing === 'auto') costing = 'auto';
+    const cands = [res.trip, ...res.alternates];
+    const scored = cands.map((t) => {
+      const p = parseTrip(t);
+      const c = curvature(p.shape, p.maneuvers.map((m) => m.begin));
+      return { time: t.summary.time, degPerKm: c.degPerKm };
+    });
+    const k = pickScenic(scored);
+    considered += cands.length;
+    if (cands.length > 1) withAlternatives++;
+    extraTime += scored[k].time - Math.min(...scored.map((x) => x.time));
+    trips.push(cands[k]);
+  }
+  return {
+    trip: mergeTrips(trips),
+    costing,
+    warning: warning || (costing === 'auto' ? AUTO_WARNING : null),
+    scenic: { segments: all.length - 1, considered, withAlternatives, extraTime },
+  };
+}
+
 async function fetchInPieces(stops, loop, options, signal, err) {
   const all = loop && stops.length >= 2 ? [...stops, { ...stops[0], type: 'break' }] : stops;
   const serverLimit = distanceLimit(err) || 500000;
@@ -110,17 +157,19 @@ async function fetchInPieces(stops, loop, options, signal, err) {
   return { trip: mergeTrips(trips), costing, warning: costing === 'auto' ? AUTO_WARNING : null };
 }
 
-async function fetchWhole(stops, loop, options, signal, forceAuto = false) {
+async function fetchWhole(stops, loop, options, signal, forceAuto = false, alternates = 0) {
   const attempt = async (snap) => {
     if (!motorcycleRejected && !forceAuto) {
       try {
-        return { trip: await requestRoute(stops, loop, options, 'motorcycle', snap, signal), costing: 'motorcycle', warning: null };
+        const r = await requestRoute(stops, loop, options, 'motorcycle', snap, signal, alternates);
+        return { ...r, costing: 'motorcycle', warning: null };
       } catch (e) {
         if (!isCostingError(e)) throw e;
         motorcycleRejected = true;
       }
     }
-    return { trip: await requestRoute(stops, loop, options, 'auto', snap, signal), costing: 'auto', warning: AUTO_WARNING };
+    const r = await requestRoute(stops, loop, options, 'auto', snap, signal, alternates);
+    return { ...r, costing: 'auto', warning: AUTO_WARNING };
   };
   try {
     return await attempt(true);
