@@ -17,9 +17,11 @@ import {
   gpxFileName,
   defaultTripName,
   explainValhallaError,
+  cumulativeDistances,
 } from './core.js';
 import { snapsToRoad, splitPlaces } from './places.js';
-import { fetchRoute, searchPlaces, reverseGeocode } from './services.js';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides } from './services.js';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -80,6 +82,13 @@ function ensureRows() {
 // Mappa
 // ---------------------------------------------------------------------------
 
+// Stradale CARTO Voyager: ha le tile @2x, quindi è nitido sugli schermi Retina di iPhone
+const voyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  maxZoom: 20,
+  subdomains: 'abcd',
+  attribution:
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+});
 const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -93,8 +102,23 @@ const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
     '(<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
 });
 
-const map = L.map('map', { zoomControl: true, layers: [osm] }).setView([45.2, 11.5], 6);
-L.control.layers({ OpenStreetMap: osm, OpenTopoMap: topo }, null, { position: 'topright' }).addTo(map);
+const LAYERS = { 'Stradale (nitida)': voyager, OpenStreetMap: osm, 'Topografica (OpenTopoMap)': topo };
+const STORAGE_LAYER = 'tracceMoto.mappa';
+let startLayer = voyager;
+try {
+  startLayer = LAYERS[localStorage.getItem(STORAGE_LAYER)] || voyager;
+} catch {
+  // memoria del browser non disponibile: si usa lo stradale
+}
+const map = L.map('map', { zoomControl: true, layers: [startLayer] }).setView([45.2, 11.5], 6);
+L.control.layers(LAYERS, null, { position: 'topright' }).addTo(map);
+map.on('baselayerchange', (e) => {
+  try {
+    localStorage.setItem(STORAGE_LAYER, e.name);
+  } catch {
+    // non importante
+  }
+});
 L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0a6ccf';
@@ -129,7 +153,8 @@ function renderMarkers() {
     });
     m.on('dragend', async () => {
       const { lat, lng } = m.getLatLng();
-      Object.assign(s, { lat, lon: lng, snap: false, name: coordLabel(lat, lng), query: coordLabel(lat, lng), context: 'Punto spostato a mano', kind: '', candidates: [] });
+      Object.assign(s, { lat, lon: lng, snap: false, name: coordLabel(lat, lng), query: coordLabel(lat, lng), context: 'Punto spostato a mano', kind: '', candidates: [], crossing: null });
+      if (s.pass) s.pass = { mode: 'auto', sides: null, up: 0, down: 0 };
       changed();
       const place = await reverseGeocode(lat, lng).catch(() => null);
       if (place && state.stops.includes(s) && s.lat === lat) {
@@ -410,6 +435,7 @@ function renderMeta(meta, s, i, role) {
     });
     meta.appendChild(chip);
   }
+  if (s.pass && (role === 'break' || role === 'through')) renderPassMeta(meta, s);
   if (s.candidates.length > 1) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -422,6 +448,181 @@ function renderMeta(meta, s, i, role) {
     meta.appendChild(b);
     if (s.showAlts) meta.after(altList(s));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Passi di montagna
+// ---------------------------------------------------------------------------
+
+const PASS_MODE_LABEL = { auto: 'Passo: automatico', full: 'Passo completo', half: 'Passo: andata e ritorno' };
+
+function sideLabel(side) {
+  const dir = compassLabel(side.bearing || 0);
+  return side.place ? `${side.place} (${dir})` : `Versante ${dir}`;
+}
+
+function renderPassMeta(meta, s) {
+  const p = s.pass;
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = `chip pass${p.mode !== 'auto' ? ' on' : ''}`;
+  chip.setAttribute('aria-expanded', String(!!s.passOpen));
+  let text = PASS_MODE_LABEL[p.mode];
+  if (p.mode !== 'auto' && p.sides && p.sides[p.up]) text += ` · da ${p.sides[p.up].place || compassLabel(p.sides[p.up].bearing)}`;
+  chip.textContent = `⛰ ${text}`;
+  chip.addEventListener('click', () => {
+    s.passOpen = !s.passOpen;
+    renderStops();
+  });
+  meta.appendChild(chip);
+  // il percorso automatico sale e torna giù dallo stesso versante: lo si dice e si propone il passo completo
+  if (p.mode === 'auto' && s.crossing === 'outandback') {
+    const warn = document.createElement('span');
+    warn.className = 'warn-text';
+    warn.textContent = 'Il percorso sale e torna indietro dallo stesso versante.';
+    meta.appendChild(warn);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'link-btn';
+    b.textContent = 'Fai il passo completo';
+    b.addEventListener('click', () => {
+      s.passOpen = true;
+      setPassMode(s, 'full');
+    });
+    meta.appendChild(b);
+  }
+  // il pannello occupa tutta la larghezza della riga
+  if (s.passOpen) meta.closest('.stop').appendChild(passPanel(s));
+}
+
+function segmented(name, items, current, onPick, wrap = true) {
+  const box = document.createElement('div');
+  box.className = `segmented${wrap ? ' wrap' : ' tight'}`;
+  box.setAttribute('role', 'radiogroup');
+  for (const [value, label] of items) {
+    const l = document.createElement('label');
+    l.innerHTML = `<input type="radio" name="${name}"><span></span>`;
+    const input = l.querySelector('input');
+    input.checked = value === current;
+    l.querySelector('span').textContent = label;
+    input.addEventListener('change', () => onPick(value));
+    box.appendChild(l);
+  }
+  return box;
+}
+
+function passPanel(s) {
+  const p = s.pass;
+  const box = document.createElement('div');
+  box.className = 'pass-panel';
+  box.appendChild(
+    segmented(`pass-mode-${s.id}`, [['auto', 'Automatico'], ['full', 'Completo'], ['half', 'Andata e ritorno']], p.mode, (m) => setPassMode(s, m), false),
+  );
+  const hint = document.createElement('p');
+  hint.className = 'hint';
+  hint.textContent = {
+    auto: 'Il percorso sceglie da che parte salire e scendere in base alle tappe prima e dopo.',
+    full: 'Sali da un versante e scendi dall\'altro: il giro attraversa davvero il passo.',
+    half: 'Sali fino in cima e torni giù dallo stesso versante.',
+  }[p.mode];
+  box.appendChild(hint);
+  if (p.mode === 'auto') return box;
+
+  if (s.passStatus === 'loading') {
+    const l = document.createElement('p');
+    l.className = 'hint';
+    l.innerHTML = '<span class="spinner"></span> Leggo le strade attorno al passo…';
+    box.appendChild(l);
+    return box;
+  }
+  if (s.passStatus === 'error' || !p.sides) {
+    const e = document.createElement('p');
+    e.className = 'hint err';
+    e.textContent = s.passMessage || 'Versanti non ancora letti.';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'link-btn';
+    retry.textContent = 'Riprova';
+    retry.addEventListener('click', () => loadPassSides(s));
+    e.append(' ', retry);
+    box.appendChild(e);
+    return box;
+  }
+  const label = (t) => {
+    const d = document.createElement('div');
+    d.className = 'row-label';
+    d.textContent = t;
+    return d;
+  };
+  box.appendChild(label('Sali da'));
+  box.appendChild(
+    segmented(`pass-up-${s.id}`, p.sides.map((x, i) => [i, sideLabel(x)]), p.up, (i) => {
+      p.up = i;
+      if (p.down === i) p.down = oppositeSide(p.sides, i);
+      changed();
+    }),
+  );
+  if (p.mode === 'full') {
+    box.appendChild(label('Scendi verso'));
+    box.appendChild(
+      segmented(`pass-down-${s.id}`, p.sides.map((x, i) => [i, sideLabel(x)]).filter(([i]) => i !== p.up), p.down, (i) => {
+        p.down = i;
+        changed();
+      }),
+    );
+  }
+  if (s.passMessage) {
+    const m = document.createElement('p');
+    m.className = 'hint';
+    m.textContent = s.passMessage;
+    box.appendChild(m);
+  }
+  return box;
+}
+
+function setPassMode(s, mode) {
+  s.pass.mode = mode;
+  s.passMessage = '';
+  if (mode !== 'auto' && !s.pass.sides) {
+    loadPassSides(s);
+    return;
+  }
+  checkSides(s);
+  changed();
+}
+
+/** Con un solo versante non si può attraversare: si passa ad andata e ritorno. */
+function checkSides(s) {
+  const p = s.pass;
+  if (p.mode === 'full' && p.sides && p.sides.length < 2) {
+    p.mode = 'half';
+    s.passMessage = 'Dall\'altra parte non scende nessuna strada percorribile: impostato andata e ritorno.';
+  }
+}
+
+async function loadPassSides(s) {
+  s.passStatus = 'loading';
+  changed({ recalc: false });
+  try {
+    const sides = await fetchPassSides(s.lat, s.lon);
+    if (!state.stops.includes(s)) return;
+    if (!sides.length) {
+      s.passStatus = 'error';
+      s.passMessage = 'Non trovo strade vicino alla cima: trascina il punto sulla strada del passo e riprova.';
+    } else {
+      const p = s.pass;
+      p.sides = sides;
+      // si sale dal versante rivolto verso la tappa precedente
+      p.up = nearestSide(sides, nearPoint(s));
+      p.down = sides.length > 1 ? oppositeSide(sides, p.up) : p.up;
+      s.passStatus = 'ok';
+      checkSides(s);
+    }
+  } catch (err) {
+    s.passStatus = 'error';
+    s.passMessage = err.message;
+  }
+  changed();
 }
 
 function altList(s) {
@@ -455,7 +656,12 @@ function applyCandidate(s, c) {
     snap: snapsToRoad(c.category),
     status: 'ok',
     message: '',
+    passOpen: false,
+    crossing: null,
   });
+  // per i passi si può scegliere come farli (completo, andata e ritorno)
+  if (c.category === 'pass') s.pass = { mode: 'auto', sides: null, up: 0, down: 0 };
+  else delete s.pass;
 }
 
 /** Coordinate della tappa trovata più vicina prima (o dopo) di questa: aiuta a scegliere tra omonimi. */
@@ -654,7 +860,18 @@ function syncControls() {
 // ---------------------------------------------------------------------------
 
 function currentKey() {
-  return JSON.stringify([placed().map((s) => [s.lat, s.lon, s.type, s.snap]), state.loop, state.options]);
+  const pass = (s) => (s.pass && s.pass.sides ? [s.pass.mode, s.pass.up, s.pass.down] : 0);
+  return JSON.stringify([placed().map((s) => [s.lat, s.lon, s.type, s.snap, pass(s)]), state.loop, state.options]);
+}
+
+/** Tappe da mandare al calcolo: i passi completi o in andata e ritorno aggiungono i punti dei versanti. */
+function routeStops() {
+  return expandStops(placed(), state.loop);
+}
+
+/** Tappe da esportare: come quelle calcolate, senza i punti ausiliari dei versanti. */
+function exportStops() {
+  return routeStops().filter((s) => !s.aux);
 }
 
 /** Da chiamare a ogni modifica. */
@@ -688,7 +905,7 @@ async function recalc() {
   recalcAbort = ctrl;
   const seq = ++recalcSeq;
   const key = currentKey();
-  const stops = placed().map((s) => ({ ...s }));
+  const stops = routeStops().map((s) => ({ ...s }));
   const loop = state.loop;
   showMapStatus('Calcolo…');
   try {
@@ -697,6 +914,7 @@ async function recalc() {
     route = { parsed: parseTrip(res.trip), costing: res.costing, warning: res.warning, stops, loop };
     routeKey = key;
     setStatus(res.warning || '', res.warning ? 'warn' : '');
+    checkCrossings();
     renderResult();
     drawRoute();
   } catch (err) {
@@ -708,7 +926,16 @@ async function recalc() {
   }
 }
 
+/** Per ogni passo: il percorso lo attraversa o torna indietro dallo stesso versante? */
+function checkCrossings() {
+  const shape = route.parsed.shape;
+  const cum = cumulativeDistances(shape);
+  for (const s of placed()) if (s.pass) s.crossing = passCrossing(shape, [s.lat, s.lon], cum);
+  renderStops();
+}
+
 function clearRoute() {
+  for (const s of state.stops) s.crossing = null;
   route = null;
   routeKey = '';
   routeLine.setLatLngs([]);
@@ -792,7 +1019,7 @@ function renderResult() {
   const p = route.parsed;
 
   // dopo una rinomina il percorso non cambia, ma i nomi sì
-  const names = legNames(routeKey === currentKey() ? { ...route, stops: placed() } : route);
+  const names = legNames(routeKey === currentKey() ? { ...route, stops: routeStops() } : route);
   const legs = $('#legs');
   legs.textContent = '';
   p.legs.forEach((leg, i) => {
@@ -810,7 +1037,7 @@ function renderResult() {
     legs.appendChild(li);
   }
 
-  const pts = buildRoutePoints(p, route.stops, route.loop);
+  const pts = buildRoutePoints(p, route.stops.filter((x) => !x.aux), route.loop);
   const shaping = pts.filter((x) => x.kind === 'shaping').length;
   $('#route-count').textContent = `${pts.length} punti (${pts.length - shaping} tappe e ${shaping} di passaggio).`;
 
@@ -858,7 +1085,7 @@ function gpxFile(kind) {
   const name = tripName();
   const now = new Date();
   // nomi aggiornati delle tappe (possono essere cambiati dopo il calcolo)
-  const stops = placed().map((s) => ({ ...s }));
+  const stops = exportStops().map((s) => ({ ...s }));
   const opts = { name, stops, loop: route.loop, parsed: route.parsed, time: now };
   if (kind === 'turn-by-turn') return { xml: buildTurnByTurnGpx(opts).xml, filename: gpxFileName(name, now, 'turn-by-turn') };
   if (kind === 'traccia') return { xml: buildTrackGpx(opts), filename: gpxFileName(name, now, 'traccia') };
@@ -946,7 +1173,7 @@ function snapshot() {
     name: state.name,
     loop: state.loop,
     options: { ...state.options },
-    stops: placed().map(({ lat, lon, name, type, snap, context, kind }) => ({ lat, lon, name, type, snap, context, kind })),
+    stops: placed().map(({ lat, lon, name, type, snap, context, kind, pass }) => ({ lat, lon, name, type, snap, context, kind, ...(pass ? { pass } : {}) })),
   };
 }
 
@@ -959,7 +1186,8 @@ function applySnapshot(s) {
       type: x.type === 'through' ? 'through' : 'break',
       snap: !!x.snap,
       context: x.context || '',
-      kind: x.kind || '',
+      kind: x.kind || (x.pass ? 'Passo' : ''),
+      ...(x.pass ? { pass: { mode: x.pass.mode || 'auto', sides: x.pass.sides || null, up: x.pass.up || 0, down: x.pass.down || 0 } } : {}),
     }),
   );
   syncControls();
