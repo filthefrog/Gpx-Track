@@ -27,12 +27,12 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610041717';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041717';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041717';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041717';
-import { CONFIG } from './config.js?v=202610041717';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041717';
+} from './core.js?v=202610041722';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041722';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041722';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041722';
+import { CONFIG } from './config.js?v=202610041722';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041722';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1599,7 +1599,7 @@ function renderElevation() {
   const n = (v) => Math.round(v).toLocaleString('it-IT');
   box.innerHTML = `
     <div class="elev-read" aria-live="polite">Scorri sul profilo: il punto si muove sulla mappa</div>
-    <div class="elev-plot">
+    <div class="elev-plot" tabindex="0" role="slider" aria-label="Posizione sul profilo altimetrico" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
         <path d="${line}L${W},${H}L0,${H}Z" fill="var(--accent)" fill-opacity="0.12"/>
         <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
@@ -1663,6 +1663,19 @@ function hideElevCursor() {
 
 function bindElevPlot(plot) {
   let dragging = false;
+  let pos = 0;
+  // da tastiera: frecce sinistra e destra (con Maiusc a passi più lunghi)
+  plot.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const step = e.shiftKey ? 0.1 : 0.01;
+    pos = Math.max(0, Math.min(1, pos + (e.key === 'ArrowRight' ? step : -step)));
+    plot.setAttribute('aria-valuenow', String(Math.round(pos * 100)));
+    showElevAt(pos, { pan: true });
+  });
+  plot.addEventListener('blur', () => {
+    if (!dragging) hideElevCursor();
+  });
   const at = (e) => {
     const r = plot.getBoundingClientRect();
     return (e.clientX - r.left) / r.width;
@@ -1670,7 +1683,8 @@ function bindElevPlot(plot) {
   plot.addEventListener('pointerdown', (e) => {
     dragging = true;
     plot.setPointerCapture(e.pointerId);
-    showElevAt(at(e), { pan: true });
+    pos = at(e);
+    showElevAt(pos, { pan: true });
   });
   plot.addEventListener('pointermove', (e) => {
     if (dragging || e.pointerType === 'mouse') showElevAt(at(e), { pan: dragging });
