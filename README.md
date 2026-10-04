@@ -110,7 +110,7 @@ Tracce Moto è un pianificatore gratuito. Si sostiene con gli annunci AdSense e 
   GPX, giro sui passi): lì compaiono gli annunci, dopo il messaggio di consenso di Google.
 - **Donazioni**: riquadro «Offrimi un caffè» nello strumento e nelle guide, visibile solo se è impostato il link.
 - Tutto si configura in `js/config.js`, poi `npm run versione` rigenera le pagine. Guida passo per passo:
-  [`docs/guadagni.md`](docs/guadagni.md).
+  [`docs/guadagni.md`](docs/guadagni.md). Idee per le prossime funzioni: [`docs/proposte.md`](docs/proposte.md).
 
 ## Google Maps e Apple Mappe
 
