@@ -19,6 +19,7 @@ export const CONFIG = Object.freeze({
   donateUrl: '',
   // Chi gestisce il sito, per l'informativa privacy (nome e cognome o ragione sociale)
   owner: '',
-  // Contatto per privacy e segnalazioni: di default le segnalazioni pubbliche su GitHub
-  contactUrl: 'https://github.com/filthefrog/Gpx-Track/issues',
+  // Contatto per privacy e segnalazioni, es. 'mailto:info@traccemoto.it' (casella del dominio inoltrata alla tua
+  // posta con Cloudflare Email Routing, gratis: vedi docs/pubblicazione.md). Mai l'indirizzo personale.
+  contactUrl: '',
 });

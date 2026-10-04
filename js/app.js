@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-  escapeXml,
-} from './core.js?v=202610041740';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610041740';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041740';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041740';
-import { CONFIG } from './config.js?v=202610041740';
-import { buildRoadbook, buildOpenRallyGpx, turnByTurnFromGpx, tulipSvg, noteLines, rbKm } from './roadbook.js?v=202610041740';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041740';
+} from './core.js?v=202610041746';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610041746';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610041746';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610041746';
+import { CONFIG } from './config.js?v=202610041746';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610041746';
+import { mountRoadbookView } from './roadbook-view.js?v=202610041746';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610041746';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -2004,137 +2004,26 @@ if (/^https:\/\//.test(CONFIG.donateUrl)) {
 }
 
 // ---------------------------------------------------------------------------
-// Roadbook da rally (js/roadbook.js): anteprima, stampa e GPX OpenRally
+// Roadbook da rally: anteprima, stampa e GPX OpenRally (js/roadbook-view.js)
 // ---------------------------------------------------------------------------
 
-const RB_FORMATS = {
-  // A4 orizzontale con due strisce da 148,5 mm (larghezza A5): si tagliano e si uniscono per il rotolo
-  strip: { page: 'A4 landscape', pageW: 297, pageH: 210, stripW: 148.5, perPage: 2, boxH: 38, head: 8 },
-  // A4 verticale, una colonna larga: per la borsa da serbatoio o per leggere sul tavolo
-  a4: { page: 'A4 portrait', pageW: 210, pageH: 297, stripW: 190, perPage: 1, boxH: 46, head: 10 },
-};
-let rbData = null; // { name, boxes, totalKm, shape, info }
-
-function rbOptions() {
-  const format = document.querySelector('input[name="rb-format"]:checked').value;
-  const order = document.querySelector('input[name="rb-order"]:checked').value;
-  return { f: RB_FORMATS[format] || RB_FORMATS.strip, order };
-}
-
-function rbBoxHtml(b) {
-  const lines = noteLines(b).map((l) => `<div>${escapeXml(l)}</div>`).join('');
-  return `<div class="rb-box${b.close ? ' close' : ''}">
-    <div class="rb-dist"><div class="rb-total">${rbKm(b.total)}</div><div class="rb-partial">${b.n > 1 ? rbKm(b.partial) : ''}</div><div class="rb-n">${b.n}</div></div>
-    <div class="rb-tulip">${tulipSvg(b)}</div>
-    <div class="rb-notes">${b.cap != null ? `<div class="rb-cap">CAP ${String(b.cap).padStart(3, '0')}</div>` : ''}<div class="rb-what">${escapeXml(b.title)}</div>${lines}</div>
-  </div>`;
-}
-
-function renderRoadbook() {
-  if (!rbData) return;
-  const { f, order } = rbOptions();
-  const per = Math.max(1, Math.floor((f.pageH - 10 - f.head) / f.boxH));
-  const strips = [];
-  for (let i = 0; i < rbData.boxes.length; i += per) strips.push(rbData.boxes.slice(i, i + per));
-  const pages = [];
-  for (let i = 0; i < strips.length; i += f.perPage) pages.push(strips.slice(i, i + f.perPage));
-  const name = escapeXml(rbData.name);
-  const html = pages
-    .map(
-      (page, p) => `<section class="rb-page" style="--page-w:${f.pageW}mm;--page-h:${f.pageH}mm">${page
-        .map((strip, k) => {
-          const first = strip[0].n;
-          const last = strip[strip.length - 1].n;
-          return `<div class="rb-strip ${order === 'up' ? 'up' : ''}" style="--strip-w:${f.stripW}mm;--box-h:${f.boxH}mm;--head-h:${f.head}mm">
-            <div class="rb-strip-head"><span>${name}</span><span>caselle ${first}-${last} · ${rbKm(rbData.totalKm)} km · foglio ${p + 1}/${pages.length}${f.perPage > 1 ? `, striscia ${k + 1}` : ''}</span></div>
-            <div class="rb-boxes">${strip.map(rbBoxHtml).join('')}</div>
-          </div>`;
-        })
-        .join('')}</section>`,
-    )
-    .join('');
-  $('#rb-pages').innerHTML = html;
-  let style = document.getElementById('rb-page-style');
-  if (!style) {
-    style = document.createElement('style');
-    style.id = 'rb-page-style';
-    document.head.appendChild(style);
-  }
-  style.textContent = `@page { size: ${f.page}; margin: 0; }`;
-  fitRoadbook();
-}
-
-/** Sullo schermo le strisce si rimpiccioliscono per stare nella larghezza disponibile. */
-function fitRoadbook() {
-  const { f } = rbOptions();
-  const avail = $('#rb-pages').clientWidth - 24;
-  const want = (f.stripW + 8) * 3.7795; // mm → px
-  $('#rb-pages').style.setProperty('--fit', String(Math.min(1, avail / want)));
-}
-
-function openRoadbook(data) {
-  rbData = data;
-  $('#rb-title').textContent = data.name;
-  $('#rb-info').textContent = data.info;
-  $('#rb-view').hidden = false;
-  document.body.classList.add('rb-open');
-  renderRoadbook();
-  $('#rb-close').focus();
-}
-
-function closeRoadbook() {
-  $('#rb-view').hidden = true;
-  document.body.classList.remove('rb-open');
-}
+const roadbookView = mountRoadbookView({ notify: (text, err) => toast(text, !!err) });
 
 $('#btn-rb-open').addEventListener('click', () => {
   if (!exportReady()) return;
-  const stops = exportStops();
-  const rb = buildRoadbook(route.parsed, { stops });
-  openRoadbook({
-    name: tripName(),
-    ...rb,
-    shape: route.parsed.shape,
-    info: `${rb.boxes.length} caselle · ${rbKm(rb.totalKm)} km`,
-  });
+  const rb = buildRoadbook(route.parsed, { stops: exportStops() });
+  roadbookView.open({ name: tripName(), ...rb, shape: route.parsed.shape, info: `${rb.boxes.length} caselle · ${rbKm(rb.totalKm)} km` });
 });
 
 $('#rb-file').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
   e.target.value = '';
   if (!file) return;
-  let text = '';
   try {
-    text = await file.text();
+    roadbookView.openGpxText(await file.text(), file.name);
   } catch {
-    return toast('Non riesco a leggere il file.', true);
+    toast('Non riesco a leggere il file.', true);
   }
-  const tbt = turnByTurnFromGpx(text);
-  if (!tbt) return toast('Il file non sembra un GPX con una traccia o una rotta.', true);
-  const rb = buildRoadbook(tbt, { stops: tbt.stops });
-  const how = tbt.source === 'geometry' ? 'svolte ricavate dalla forma della traccia: ricontrolla le caselle' : 'indicazioni lette dal file';
-  openRoadbook({
-    name: tbt.name || file.name.replace(/\.gpx$/i, ''),
-    ...rb,
-    shape: tbt.shape,
-    info: `${rb.boxes.length} caselle · ${rbKm(rb.totalKm)} km · ${how}`,
-  });
-});
-
-for (const input of document.querySelectorAll('input[name="rb-format"], input[name="rb-order"]')) input.addEventListener('change', renderRoadbook);
-$('#rb-close').addEventListener('click', closeRoadbook);
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !$('#rb-view').hidden) closeRoadbook();
-});
-window.addEventListener('resize', () => {
-  if (!$('#rb-view').hidden) fitRoadbook();
-});
-$('#rb-print').addEventListener('click', () => window.print());
-$('#rb-gpx').addEventListener('click', () => {
-  if (!rbData) return;
-  const now = new Date();
-  const xml = buildOpenRallyGpx({ name: rbData.name, boxes: rbData.boxes, totalKm: rbData.totalKm, shape: rbData.shape, time: now });
-  download({ xml, filename: gpxFileName(rbData.name, now, 'roadbook-openrally') });
 });
 
 const exportButtons = {

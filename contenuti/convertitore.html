@@ -1,0 +1,45 @@
+<!--{"path": "convertitore-gpx-roadbook/index.html", "order": 3, "ads": true, "css": ["roadbook"], "js": ["convertitore"], "title": "Convertitore GPX → roadbook da rally, gratis", "description": "Carica un file GPX e ottieni gratis un roadbook da rally: caselle con distanze totali e parziali, tulipani e CAP, da stampare su rotolo da 148,5 mm o A4, oppure GPX OpenRally."}-->
+<span class="kicker">Strumento gratuito</span>
+<h1>Convertitore GPX → roadbook</h1>
+<p class="lead">Carica un file GPX e in pochi secondi hai il roadbook: una casella per ogni svolta, con distanza totale e
+  parziale, tulipano, CAP e note. Lo stampi su strisce da 148,5 mm per il porta-roadbook o su A4, oppure lo scarichi
+  come GPX OpenRally per app e dispositivi da roadbook. Niente registrazione: il file resta nel tuo browser.</p>
+
+<section class="convert" aria-label="Converti un GPX">
+  <label class="convert-drop" id="convert-drop">
+    <input type="file" id="convert-file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
+    <strong>Scegli un file GPX</strong>
+    <span>oppure trascinalo qui</span>
+  </label>
+  <p class="convert-status" id="convert-status" role="status" aria-live="polite"></p>
+  <p class="convert-alt">Non hai un GPX? <a href="{{up}}./">Crea il giro dall'elenco delle località</a> e apri «Roadbook da rally».</p>
+</section>
+
+<h2>Quali GPX funzionano</h2>
+<ul>
+  <li><strong>GPX turn by turn</strong> di Traccemoto o di OsmAnd: le svolte, le rotonde e le uscite si leggono dal file.</li>
+  <li><strong>Una semplice traccia</strong> (da Whip Live, Garmin, Wikiloc o dall'organizzatore di un giro): le svolte si
+    ricavano dalla forma della strada. Funziona bene, ma conviene ricontrollare le caselle, soprattutto sui passi.</li>
+</ul>
+
+<!--annuncio-->
+
+<h2>Cosa c'è in ogni casella</h2>
+<p>Lo schema è quello dei roadbook FIA e FIM: a sinistra la distanza totale (grande) e la parziale (nel riquadro), al
+  centesimo di chilometro; al centro il tulipano, dove si arriva dal pallino e si esce dalla freccia; a destra il CAP
+  (la direzione della bussola) e le note. Le caselle che arrivano meno di 300 metri dopo la precedente hanno la
+  parziale evidenziata. Per saperne di più leggi <a href="{{up}}guide/roadbook-rally.html">come si legge un roadbook</a>.</p>
+
+<h2>Domande frequenti</h2>
+<h3>Il file viene caricato su un server?</h3>
+<p>No. La conversione avviene nel tuo browser: il GPX non lascia il tuo dispositivo.</p>
+<h3>Posso usarlo in gara?</h3>
+<p>È pensato per allenamento, turismo, raduni e rally amatoriali. Nelle gare ufficiali vale il roadbook
+  dell'organizzatore (nel motorally italiano, quello approvato dal Comitato Motorally FMI).</p>
+<h3>Che cos'è il GPX OpenRally?</h3>
+<p>Un formato aperto per i roadbook digitali: ogni casella ha distanza, CAP, tulipano e note. Lo leggono app e
+  dispositivi da roadbook compatibili con OpenRally.</p>
+<!--se-donazioni-->
+<div class="donate"><p>Il convertitore è gratuito. Se ti è servito, puoi offrirmi un caffè.</p>
+  <a class="btn" href="{{donate}}" target="_blank" rel="noopener">Offrimi un caffè</a></div>
+<!--fine-donazioni-->

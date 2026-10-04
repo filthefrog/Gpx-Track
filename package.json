@@ -1,13 +1,15 @@
 {
-  "name": "tracce-moto",
+  "name": "traccemoto",
   "version": "1.0.0",
   "private": true,
-  "description": "Web app statica per progettare giri in moto ed esportare GPX",
+  "description": "Traccemoto: pianificatore di giri in moto (sito proprietario)",
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "collaudo": "node tests/collaudo.mjs",
     "versione": "node scripts/versione.mjs",
-    "pagine": "node scripts/pagine.mjs"
-  }
+    "pagine": "node scripts/pagine.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "license": "UNLICENSED"
 }

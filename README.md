@@ -176,19 +176,18 @@ Dettagli tecnici:
   Gli altri programmi le ignorano.
 - I file si chiamano `nome-del-giro_AAAA-MM-GG_traccia.gpx` e `…_rotta.gpx`.
 
-## Pubblicare su GitHub Pages
+## Pubblicazione (Cloudflare Pages)
 
-1. Su GitHub apri il repository › **Settings** › **Pages**.
-2. In **Build and deployment** scegli **Source: Deploy from a branch**.
-3. Scegli il branch (per esempio `main`) e la cartella **/ (root)**, poi **Save**.
-4. Dopo un minuto circa l'app è su `https://<utente>.github.io/<repository>/`
-   (per questo repository: `https://filthefrog.github.io/Gpx-Track/`).
+Il sito si pubblica su **Cloudflare Pages** (gratis anche con il repository privato): comando di build
+`npm run build`, cartella di output `dist`. La build copia in `dist/` solo i file pubblici: documenti, test, testi
+sorgente e script restano privati. Guida passo per passo, dominio e passaggio del repository a privato:
+[`docs/pubblicazione.md`](docs/pubblicazione.md).
 
-Il file `.nojekyll` evita che GitHub elabori i file con Jekyll. Non serve altro: non c'è nulla da compilare.
+Il codice è proprietario: vedi `LICENSE`.
 
 ### Aggiornamenti e cache
 
-GitHub Pages lascia che il browser tenga i file in cache per qualche minuto. Per evitare che un iPhone mescoli
+Il browser tiene i file in cache. Per evitare che un iPhone mescoli
 file vecchi e nuovi, CSS e moduli JavaScript sono richiamati con un numero di versione (`?v=...`).
 Prima di pubblicare una modifica aggiorna il numero con:
 

@@ -1,6 +1,6 @@
 // Service worker di Traccemoto: app disponibile offline e mappa già vista in cache.
 // VERSION viene aggiornata da `npm run versione` insieme ai ?v= di CSS e moduli.
-const VERSION = '202610041740';
+const VERSION = '202610041746';
 const SHELL = `tracce-shell-${VERSION}`;
 const TILES = 'tracce-mappa-v1';
 const MAX_TILES = 1500;
@@ -16,7 +16,8 @@ const ASSETS = [
   'index.html',
   'manifest.webmanifest',
   `css/style.css?v=${VERSION}`,
-  ...['app', 'core', 'places', 'passes', 'services', 'legs', 'config', 'roadbook'].map((m) => `js/${m}.js?v=${VERSION}`),
+  `css/roadbook.css?v=${VERSION}`,
+  ...['app', 'core', 'places', 'passes', 'services', 'legs', 'config', 'roadbook', 'roadbook-view'].map((m) => `js/${m}.js?v=${VERSION}`),
   'icons/icon.svg',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',

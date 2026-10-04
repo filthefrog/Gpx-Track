@@ -1,0 +1,18 @@
+# Intestazioni HTTP per Cloudflare Pages (copiato in dist/ da scripts/build.mjs).
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=()
+  X-Frame-Options: SAMEORIGIN
+
+# il service worker deve aggiornarsi subito dopo ogni pubblicazione
+/sw.js
+  Cache-Control: no-cache
+
+# CSS, JavaScript e caratteri sono richiamati con ?v=versione: si possono tenere in cache a lungo
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable

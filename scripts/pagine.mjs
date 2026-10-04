@@ -58,12 +58,20 @@ const AD_HEAD = (client) => `
   <link rel="preconnect" href="https://tpc.googlesyndication.com" crossorigin>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}" crossorigin="anonymous"></script>`;
 
+/** Contatto per privacy e segnalazioni: link email (mailto:) o pagina web; se manca lo si dice. */
+function contactLink() {
+  const c = String(CONFIG.contactUrl || '').trim();
+  if (!c) return '<em>indirizzo in arrivo</em>';
+  const label = c.startsWith('mailto:') ? c.slice(7) : c.replace(/^https?:\/\//, '');
+  return `<a href="${esc(c)}"${c.startsWith('mailto:') ? '' : ' target="_blank" rel="noopener"'}>${esc(label)}</a>`;
+}
+
 function render(page) {
   const up = '../'.repeat(page.path.split('/').length - 1);
   const withAds = ads && page.ads;
   let body = page.body
     .replace(/\{\{owner\}\}/g, esc(CONFIG.owner || 'il gestore del sito'))
-    .replace(/\{\{contact\}\}/g, esc(CONFIG.contactUrl))
+    .replace(/\{\{contact\}\}/g, contactLink())
     .replace(/\{\{donate\}\}/g, esc(CONFIG.donateUrl))
     .replace(/\{\{up\}\}/g, up);
   body = CONFIG.donateUrl
@@ -117,7 +125,7 @@ function render(page) {
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <link rel="icon" href="${up}icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="${up}icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="${up}css/sito.css?v=${VERSION}">${withAds ? AD_HEAD(ads) : ''}
+  <link rel="stylesheet" href="${up}css/sito.css?v=${VERSION}">${(page.css || []).map((c) => `\n  <link rel="stylesheet" href="${up}css/${c}.css?v=${VERSION}">`).join('')}${(page.js || []).map((j) => `\n  <script type="module" src="${up}js/${j}.js?v=${VERSION}"></script>`).join('')}${withAds ? AD_HEAD(ads) : ''}
 </head>
 <body>
   <header class="site-top">
@@ -144,7 +152,7 @@ ${body.trim()}
       <a href="${up}info.html">Chi siamo e contatti</a>
       <a href="${up}privacy.html">Privacy e cookie</a>
     </nav>
-    <p>Traccemoto è gratuito. Mappe e dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> e contributori.
+    <p>© ${new Date().getFullYear()} Traccemoto. Gratuito per chi lo usa. Mappe e dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> e contributori.
       Controlla sempre percorsi, aperture dei passi e divieti prima di partire.</p>
   </footer>
 </body>
@@ -220,4 +228,5 @@ write('robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${CONFIG.siteUrl}/sitem
 // ads.txt: va nella radice del dominio (vedi docs/guadagni.md); qui è pronto da copiare
 if (ads) write('ads.txt', `google.com, ${ads.replace(/^ca-/, '')}, DIRECT, f08c47fec0942fa0\n`);
 
+if (!CONFIG.contactUrl) console.warn('Attenzione: manca contactUrl in js/config.js (serve per privacy e contatti).');
 console.log(`${pages.length} pagine${ads ? ' con annunci' : ' (annunci non configurati)'}${toolAds ? ', annunci anche nello strumento' : ''}${CONFIG.donateUrl ? ', donazioni attive' : ''}.`);

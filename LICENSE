@@ -1,0 +1,11 @@
+Copyright (c) 2026 Traccemoto. Tutti i diritti riservati.
+
+Questo software (codice sorgente, testi, grafica e documentazione del sito Traccemoto) è proprietario.
+Non è concessa alcuna licenza d'uso, copia, modifica, distribuzione o pubblicazione, in tutto o in parte,
+senza il permesso scritto del titolare. L'uso del sito pubblicato da parte dei visitatori è libero e gratuito.
+
+Componenti di terzi inclusi, con le rispettive licenze (che restano valide):
+- Saira Condensed (fonts/), SIL Open Font License 1.1 — vedi fonts/OFL.txt
+- Schemi OpenRally (tests/openrally/), Creative Commons Attribution 4.0 — vedi tests/openrally/README.md
+Componenti caricati da CDN durante l'uso: Leaflet (BSD 2-Clause). Dati cartografici © OpenStreetMap e
+contributori (ODbL).

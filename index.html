@@ -33,10 +33,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/style.css?v=202610041740">
+  <link rel="stylesheet" href="css/roadbook.css?v=202610041746">
+  <link rel="stylesheet" href="css/style.css?v=202610041746">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610041740"></script>
+  <script type="module" src="js/app.js?v=202610041746"></script>
 </head>
 <body>
   <header class="site-top">
@@ -299,6 +300,7 @@
         ricerca <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> ·
         dati © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.
         Controlla sempre il percorso prima di partire: aperture dei passi e lavori non sono noti.
+        <br>© 2026 Traccemoto. Tutti i diritti riservati.
       </footer>
 
       <div class="dock" id="dock">
@@ -314,32 +316,6 @@
         </button>
       </div>
     </main>
-  </div>
-
-  <!-- roadbook da rally: anteprima e stampa -->
-  <div id="rb-view" class="rb-view" hidden role="dialog" aria-modal="true" aria-labelledby="rb-title">
-    <div class="rb-bar">
-      <div class="rb-head">
-        <strong id="rb-title">Roadbook</strong>
-        <span id="rb-info"></span>
-      </div>
-      <div class="rb-controls">
-        <div class="segmented" role="radiogroup" aria-label="Formato di stampa">
-          <label><input type="radio" name="rb-format" value="strip" checked><span>Rotolo 148,5</span></label>
-          <label><input type="radio" name="rb-format" value="a4"><span>A4</span></label>
-        </div>
-        <div class="segmented" role="radiogroup" aria-label="Ordine delle caselle">
-          <label><input type="radio" name="rb-order" value="down" checked><span>Dall'alto</span></label>
-          <label><input type="radio" name="rb-order" value="up"><span>Dal basso</span></label>
-        </div>
-        <div class="btn-row">
-          <button type="button" class="btn" id="rb-print">Stampa o PDF</button>
-          <button type="button" class="btn secondary" id="rb-gpx">GPX OpenRally</button>
-          <button type="button" class="btn ghost" id="rb-close">Chiudi</button>
-        </div>
-      </div>
-    </div>
-    <div class="rb-pages" id="rb-pages"></div>
   </div>
 
   <div id="toast" class="toast" role="alert" hidden></div>

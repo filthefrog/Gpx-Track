@@ -1,0 +1,63 @@
+/* Roadbook da rally: anteprima a schermo e stampa. Usato dallo strumento e dal convertitore GPX → roadbook.
+   Autonomo: non dipende da style.css né da sito.css. Le misure in mm sono quelle stampate. */
+
+.rb-view { position: fixed; inset: 0; z-index: 2000; background: #e9eaec; display: flex; flex-direction: column; color: #16181d;
+  font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.rb-view[hidden] { display: none; }
+.rb-bar {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+  padding: calc(10px + env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left));
+  background: #fff; border-bottom: 1px solid #e3e5e8;
+}
+.rb-head { display: flex; flex-direction: column; min-width: 0; }
+.rb-head strong { font-size: 17px; }
+.rb-head span { font-size: 13px; color: #646a73; }
+.rb-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rb-seg { display: flex; background: #f4f5f6; border-radius: 9px; padding: 3px; gap: 3px; }
+.rb-seg label { position: relative; }
+.rb-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.rb-seg span { display: grid; place-items: center; min-height: 36px; padding: 0 10px; border-radius: 7px; font-weight: 600; font-size: 14px; color: #646a73; cursor: pointer; white-space: nowrap; }
+.rb-seg input:checked + span { background: #fff; color: #16181d; box-shadow: 0 0 0 1px #e3e5e8; }
+.rb-seg input:focus-visible + span { outline: 3px solid #c8102e; }
+.rb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rb-btn { min-height: 40px; padding: 8px 14px; border-radius: 9px; border: 0; font: inherit; font-weight: 700; cursor: pointer; background: #fff; color: #16181d; box-shadow: inset 0 0 0 1px #e3e5e8; }
+.rb-btn.primary { background: #c8102e; color: #fff; box-shadow: none; }
+.rb-btn.ghost { background: transparent; color: #c8102e; box-shadow: none; }
+.rb-btn:focus-visible { outline: 3px solid #c8102e; outline-offset: 2px; }
+.rb-pages { flex: 1; overflow: auto; padding: 12px; --fit: 1; }
+.rb-page { display: flex; flex-wrap: wrap; gap: 8mm; justify-content: center; margin: 0 auto 8mm; zoom: var(--fit); }
+
+.rb-strip { width: var(--strip-w); background: #fff; color: #000; box-shadow: 0 1px 4px rgb(0 0 0 / 15%); font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+.rb-strip-head { height: var(--head-h); display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 3mm; font-size: 8pt; border-bottom: 0.6mm solid #000; overflow: hidden; white-space: nowrap; }
+.rb-strip-head span:first-child { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.rb-boxes { display: flex; flex-direction: column; }
+.rb-strip.up .rb-boxes { flex-direction: column-reverse; }
+.rb-box { height: var(--box-h); display: grid; grid-template-columns: 24% 36% 40%; border-bottom: 0.4mm solid #000; break-inside: avoid; }
+.rb-box > div { border-right: 0.4mm solid #000; position: relative; overflow: hidden; }
+.rb-box > div:last-child { border-right: 0; }
+.rb-dist { display: flex; flex-direction: column; align-items: center; padding-top: 2mm; }
+.rb-total { font-family: "Saira Condensed", "Arial Narrow", sans-serif; font-weight: 800; font-size: 22pt; line-height: 1; }
+.rb-partial { position: absolute; left: 1.5mm; bottom: 1.5mm; min-width: 12mm; padding: 0.5mm 1mm; border: 0.4mm solid #000; font-family: "Saira Condensed", "Arial Narrow", sans-serif; font-weight: 600; font-size: 12pt; line-height: 1.1; text-align: center; }
+.rb-partial:empty { display: none; }
+/* meno di 300 m dalla casella prima: parziale evidenziato (stampa anche in bianco e nero) */
+.rb-box.close .rb-partial { background: #cfcfcf; border-width: 0.7mm; }
+.rb-n { position: absolute; right: 1.5mm; bottom: 1.5mm; min-width: 5mm; padding: 0.3mm 0.8mm; background: #000; color: #fff; font-size: 8pt; font-weight: 700; text-align: center; }
+.rb-tulip { display: grid; place-items: center; }
+.rb-tulip svg { width: calc(var(--box-h) - 4mm); height: calc(var(--box-h) - 4mm); }
+.rb-notes { padding: 1.5mm 2mm; font-size: 9.5pt; line-height: 1.25; }
+.rb-cap { text-align: right; font-family: "Saira Condensed", "Arial Narrow", sans-serif; font-weight: 800; font-size: 13pt; }
+.rb-what { font-weight: 800; font-size: 11pt; margin-bottom: 0.5mm; }
+
+body.rb-open { overflow: hidden; }
+
+@media print {
+  html, body { height: auto !important; display: block !important; background: #fff !important; }
+  body.rb-open > *:not(#rb-view) { display: none !important; }
+  .rb-view { position: static; display: block; background: #fff; }
+  .rb-bar { display: none !important; }
+  .rb-pages { overflow: visible; padding: 0; }
+  .rb-page { zoom: 1 !important; width: var(--page-w); height: var(--page-h); margin: 0; gap: 0; padding: 5mm 0; box-sizing: border-box; justify-content: center; flex-wrap: nowrap; break-after: page; page-break-after: always; }
+  .rb-page:last-child { break-after: auto; page-break-after: auto; }
+  .rb-strip { box-shadow: none; outline: 0.2mm dashed #888; }
+  .rb-tulip svg, .rb-n, .rb-box.close .rb-partial { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

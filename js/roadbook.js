@@ -2,7 +2,7 @@
 // in stile FIA/FIM: distanza totale e parziale, tulipano, CAP e note.
 // Funzioni pure (nessun DOM, nessuna rete): testate in tests/roadbook.test.mjs.
 // Requisiti e fonti: docs/roadbook.md.
-import { cumulativeDistances, curvature, escapeXml, simplifyRDP } from './core.js?v=202610041740';
+import { cumulativeDistances, curvature, escapeXml, simplifyRDP } from './core.js?v=202610041746';
 
 export const RB = Object.freeze({
   HEADING_M: 35, // metri di traccia per misurare la direzione di entrata e di uscita
