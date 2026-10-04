@@ -518,10 +518,13 @@ export function escapeXml(s) {
 
 const coord = (v) => (Math.round(v * 1e6) / 1e6).toFixed(6);
 
-function gpxHeader(name, time, desc) {
+const TRP_NS = 'http://www.garmin.com/xmlschemas/TripExtensions/v1';
+
+function gpxHeader(name, time, desc, garmin = false) {
   return (
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<gpx version="1.1" creator="Tracce Moto" xmlns="http://www.topografix.com/GPX/1/1" ' +
+    (garmin ? `xmlns:trp="${TRP_NS}" ` : '') +
     'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
     'xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">\n' +
     '  <metadata>\n' +
@@ -563,13 +566,16 @@ export function buildTrackGpx({ name, stops, loop = false, parsed, tolerance = 4
 
 /**
  * GPX "Rotta": un <rte> con le tappe e i punti di passaggio dopo le manovre.
+ * Le estensioni Garmin (ignorate dagli altri programmi) dicono ai navigatori
+ * Garmin/BMW quali punti sono destinazioni (ViaPoint) e quali solo punti di
+ * forma (ShapingPoint), così non annunciano l'arrivo a ogni svolta.
  * Restituisce { xml, count, stops, shaping }.
  */
 export function buildRouteGpx({ name, stops, loop = false, parsed, time = new Date() }) {
   const iso = toIsoSeconds(time);
   const points = buildRoutePoints(parsed, stops, loop);
   const desc = `${formatKm(parsed.summary.length)} · ${formatDuration(parsed.summary.time)}`;
-  let x = gpxHeader(name, iso, desc);
+  let x = gpxHeader(name, iso, desc, true);
   x += `  <rte>\n    <name>${escapeXml(name)}</name>\n`;
   let n = 0;
   for (const p of points) {
@@ -583,6 +589,7 @@ export function buildRouteGpx({ name, stops, loop = false, parsed, time = new Da
         `      <name>${escapeXml(p.name)}</name>\n` +
         `      <sym>Flag</sym>\n` +
         `      <type>${label}</type>\n` +
+        `      <extensions><trp:${label === 'Passaggio' ? 'ShapingPoint' : 'ViaPoint'}/></extensions>\n` +
         '    </rtept>\n';
     } else {
       x +=
@@ -591,6 +598,7 @@ export function buildRouteGpx({ name, stops, loop = false, parsed, time = new Da
         `      <desc>${escapeXml(p.desc)}</desc>\n` +
         '      <sym>Waypoint</sym>\n' +
         '      <type>Punto di passaggio</type>\n' +
+        '      <extensions><trp:ShapingPoint/></extensions>\n' +
         '    </rtept>\n';
     }
   }

@@ -331,13 +331,21 @@ test('buildRouteGpx: GPX 1.1 valido con rte, tappe e punti di passaggio', () => 
   assert.equal(types[0], 'Partenza');
   assert.equal(types[types.length - 1], 'Arrivo');
   assert.ok(types.includes('Passaggio'));
+  // estensioni Garmin: destinazioni come ViaPoint, il resto come ShapingPoint
+  assert.equal(gpx.attrs['xmlns:trp'], 'http://www.garmin.com/xmlschemas/TripExtensions/v1');
+  const ext = rtepts.map((r) => child(child(r, 'extensions'), 'trp:ViaPoint') ? 'via' : child(child(r, 'extensions'), 'trp:ShapingPoint') ? 'shape' : '?');
+  assert.equal(ext[0], 'via');
+  assert.equal(ext[ext.length - 1], 'via');
+  assert.equal(ext.filter((e) => e === 'via').length, 2);
+  assert.ok(!ext.includes('?'));
   // ogni rtept ha lat/lon numerici e un nome
   for (const r of rtepts) {
     assert.ok(Number.isFinite(Number(r.attrs.lat)) && Number.isFinite(Number(r.attrs.lon)));
     assert.ok(child(r, 'name').text.length > 0);
     // elementi del wpt nell'ordine dello schema: name, cmt?, desc?, sym, type
     const order = r.children.map((c) => c.name);
-    assert.deepEqual(order, [...order].sort((a, b) => ['name', 'cmt', 'desc', 'sym', 'type'].indexOf(a) - ['name', 'cmt', 'desc', 'sym', 'type'].indexOf(b)));
+    const schema = ['name', 'cmt', 'desc', 'sym', 'type', 'extensions'];
+    assert.deepEqual(order, [...order].sort((a, b) => schema.indexOf(a) - schema.indexOf(b)));
   }
 });
 
