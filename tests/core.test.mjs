@@ -17,6 +17,9 @@ import {
   buildRoutePoints,
   buildTrackGpx,
   buildRouteGpx,
+  buildTurnByTurnGpx,
+  turnByTurnInstructions,
+  osmandTurn,
   roadbookText,
   encodeState,
   decodeState,
@@ -382,6 +385,73 @@ test('buildRouteGpx: anello con ritorno alla partenza', () => {
   assert.equal(Number(last.attrs.lat), Number(rtepts[0].attrs.lat));
 });
 
+test('turnByTurnInstructions: fonde cambio nome, uscita di rotonda e arrivi intermedi', () => {
+  const { trip } = makeTrip();
+  const p = parseTrip(trip);
+  const steps = turnByTurnInstructions(p);
+  const types = steps.map((m) => m.type);
+  assert.ok(!types.includes(7) && !types.includes(27));
+  assert.equal(types.filter((t) => t === 4).length, 1, 'solo l\'arrivo finale');
+  assert.equal(types[types.length - 1], 4);
+  // il tempo totale non si perde
+  const total = p.maneuvers.reduce((a, m) => a + m.time, 0);
+  assert.ok(near(steps.reduce((a, m) => a + m.time, 0), total, 1e-6));
+  // la rotonda include la strada dopo l'uscita
+  const rndb = steps.find((m) => m.type === 26);
+  assert.ok(near(rndb.length, 0.64, 1e-9));
+  assert.equal(osmandTurn(rndb), 'RNDB2');
+  assert.equal(osmandTurn({ type: 15 }), 'TL');
+  assert.equal(osmandTurn({ type: 23 }), 'KR');
+});
+
+test('buildTurnByTurnGpx: un solo file con tappe, istruzioni sugli incroci e traccia', () => {
+  const { trip, stops } = makeTrip();
+  const p = parseTrip(trip);
+  const res = buildTurnByTurnGpx({ name: 'Giro', stops, parsed: p, time: new Date('2026-10-04T08:00:00Z') });
+  const gpx = parseXml(res.xml);
+  assert.equal(gpx.attrs.creator, 'OsmAndRouter');
+  assert.equal(gpx.attrs['xmlns:osmand'], 'https://osmand.net');
+  assert.deepEqual([...new Set(gpx.children.map((c) => c.name))], ['metadata', 'wpt', 'rte', 'trk']);
+  assert.deepEqual(findAll(gpx, 'wpt').map((w) => child(w, 'name').text), ['1. Partenza & co <test>', '2. Tappa intermedia', '3. Arrivo']);
+  const rtepts = findAll(gpx, 'rtept');
+  assert.equal(rtepts.length, res.instructions);
+  assert.deepEqual(rtepts.map((r) => child(r, 'name').text), [
+    '0,0 km Parti su Via Uno',
+    '1,3 km Destra su SP1',
+    '2,1 km Rotonda, 2ª uscita su SP2',
+    '2,7 km Sinistra su Vicolo Corto',
+    '2,8 km Destra su Via Breve',
+    '2,9 km Prosegui su Via Breve',
+    '3,1 km Sinistra su SS3',
+    '3,6 km Riparti da 2. Tappa intermedia su SS3',
+    '4,0 km Tutto a sinistra su Strada del Passo',
+    '4,9 km Tieni la sinistra verso Bormio',
+    '5,3 km Dritto su Strada del Passo',
+    '5,6 km Arrivo a 3. Arrivo',
+  ]);
+  const trkpts = findAll(gpx, 'trkpt').map((t) => [Number(t.attrs.lat), Number(t.attrs.lon)]);
+  assert.equal(trkpts.length, res.points);
+  let prevOffset = -1;
+  for (const r of rtepts) {
+    const ext = child(r, 'extensions');
+    const offset = Number(child(ext, 'osmand:offset').text);
+    const time = Number(child(ext, 'osmand:time').text);
+    assert.ok(Number.isInteger(offset) && offset > prevOffset, 'offset crescenti');
+    assert.ok(Number.isInteger(time) && time >= 0);
+    // l'istruzione è esattamente sul punto della traccia indicato dall'offset
+    const at = [Number(r.attrs.lat), Number(r.attrs.lon)];
+    assert.ok(haversine(at, trkpts[offset]) < 0.2);
+    prevOffset = offset;
+  }
+  assert.equal(child(child(rtepts[1], 'extensions'), 'osmand:turn').text, 'TR');
+  assert.equal(child(child(rtepts[2], 'extensions'), 'osmand:turn').text, 'RNDB2');
+  assert.equal(child(child(rtepts[0], 'extensions'), 'osmand:turn'), undefined);
+  assert.match(child(rtepts[1], 'desc').text, /Poi prosegui per 0,8 km/);
+  // la traccia resta sulla strada
+  const maxDev = Math.max(...p.shape.map((pt) => distanceToLine(pt, trkpts)));
+  assert.ok(maxDev <= 4.2);
+});
+
 // ---------------------------------------------------------------------------
 // Roadbook, stato, nomi
 // ---------------------------------------------------------------------------
@@ -428,6 +498,7 @@ test('gpxFileName e defaultTripName', () => {
 test('formattazione italiana di km e durate', () => {
   assert.equal(formatKm(1234.56), '1.234,6 km');
   assert.equal(formatDuration(59 * 60), '59 min');
+  assert.equal(formatDuration(12), 'meno di 1 min');
   assert.equal(formatDuration(3 * 3600 + 5 * 60), '3 h 05 min');
 });
 

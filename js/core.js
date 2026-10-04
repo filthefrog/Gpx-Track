@@ -597,11 +597,15 @@ const coord = (v) => (Math.round(v * 1e6) / 1e6).toFixed(6);
 
 const TRP_NS = 'http://www.garmin.com/xmlschemas/TripExtensions/v1';
 
-function gpxHeader(name, time, desc, garmin = false) {
+const OSMAND_NS = 'https://osmand.net';
+
+function gpxHeader(name, time, desc, garmin = false, osmand = false) {
   return (
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<gpx version="1.1" creator="Tracce Moto" xmlns="http://www.topografix.com/GPX/1/1" ' +
+    // OsmAnd legge le indicazioni di un <rte> solo se il file dichiara di venire dal suo router
+    `<gpx version="1.1" creator="${osmand ? 'OsmAndRouter' : 'Tracce Moto'}" xmlns="http://www.topografix.com/GPX/1/1" ` +
     (garmin ? `xmlns:trp="${TRP_NS}" ` : '') +
+    (osmand ? `xmlns:osmand="${OSMAND_NS}" ` : '') +
     'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
     'xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">\n' +
     '  <metadata>\n' +
@@ -703,6 +707,112 @@ export function buildRouteGpx({ name, stops, loop = false, parsed, time = new Da
   return { xml: x, count: points.length, stops: stopCount, shaping: points.length - stopCount };
 }
 
+// Codici di svolta OsmAnd (TurnType): C dritto, TL/TR sinistra/destra, TSLL/TSLR leggermente,
+// TSHL/TSHR stretta, KL/KR tieni, TU/TRU inversione, RNDB<n> rotonda con uscita n.
+const OSMAND_TURN = {
+  8: 'C',
+  9: 'TSLR',
+  10: 'TR',
+  11: 'TSHR',
+  12: 'TRU',
+  13: 'TU',
+  14: 'TSHL',
+  15: 'TL',
+  16: 'TSLL',
+  17: 'C',
+  18: 'KR',
+  19: 'KL',
+  20: 'KR',
+  21: 'KL',
+  22: 'C',
+  23: 'KR',
+  24: 'KL',
+  25: 'C',
+  37: 'KR',
+  38: 'KL',
+};
+
+export function osmandTurn(m) {
+  if (m.type === MANEUVER.ROUNDABOUT_ENTER) return `RNDB${m.exitCount || 1}`;
+  return OSMAND_TURN[m.type] || '';
+}
+
+/**
+ * Istruzioni turn by turn: una per manovra, con il tempo fino alla successiva.
+ * Si fondono con la precedente: il cambio nome della strada, l'uscita dalla rotonda
+ * (già detta all'ingresso) e gli arrivi intermedi (la tratta dopo riparte dallo stesso punto).
+ */
+export function turnByTurnInstructions(parsed) {
+  const out = [];
+  const last = parsed.maneuvers.length - 1;
+  parsed.maneuvers.forEach((m, i) => {
+    const intermediateArrival = m.type >= 4 && m.type <= 6 && i !== last;
+    const merge = m.type === MANEUVER.BECOMES || m.type === MANEUVER.ROUNDABOUT_EXIT || intermediateArrival;
+    if (merge && out.length) {
+      const prev = out[out.length - 1];
+      prev.time += m.time || 0;
+      prev.length += m.length || 0;
+      if (m.type === MANEUVER.ROUNDABOUT_EXIT && !prev.streetNames.length) prev.streetNames = m.streetNames;
+      return;
+    }
+    out.push({ ...m, time: m.time || 0, length: m.length || 0, streetNames: [...m.streetNames] });
+  });
+  return out;
+}
+
+/**
+ * GPX "turn by turn" in un solo file, per app come OsmAnd:
+ *  - <wpt> per ogni tappa;
+ *  - <rte> con un punto per ogni manovra, sull'incrocio: nome breve, istruzione completa
+ *    e le estensioni OsmAnd (offset nella traccia, codice di svolta, secondi fino alla prossima);
+ *  - <trk> con la geometria strada per strada (semplificata a 4 m, incroci esatti).
+ * Le app che non conoscono le estensioni mostrano comunque nomi e descrizioni dei punti.
+ */
+export function buildTurnByTurnGpx({ name, stops, loop = false, parsed, tolerance = 4, time = new Date() }) {
+  const iso = toIsoSeconds(time);
+  const simplified = simplifyRDP(parsed.shape, tolerance, keyIndices(parsed));
+  const indexOf = new Map(simplified.map((p, i) => [p, i]));
+  const desc = tripDescription(parsed, stops);
+  const steps = turnByTurnInstructions(parsed);
+  let x = gpxHeader(name, iso, desc, false, true);
+  stops.forEach((s, i) => {
+    x +=
+      `  <wpt lat="${coord(s.lat)}" lon="${coord(s.lon)}">\n` +
+      `    <name>${escapeXml(`${i + 1}. ${s.name}`)}</name>\n` +
+      `    <type>${stopTypeLabel(stops, i, loop)}</type>\n` +
+      '  </wpt>\n';
+  });
+  x += `  <rte>\n    <name>${escapeXml(name)}</name>\n    <desc>${escapeXml(desc)}</desc>\n`;
+  // le tratte iniziano e finiscono sulle tappe "sosta" (i passaggi non spezzano il percorso)
+  const locNames = routeLocations(stops, loop).map((_, i) => (i < stops.length ? `${i + 1}. ${stops[i].name}` : `1. ${stops[0].name}`));
+  const breakNames = routeLocations(stops, loop)
+    .map((l, i) => (l.type === 'break' ? locNames[i] : null))
+    .filter((n) => n !== null);
+  for (const m of steps) {
+    const [la, lo] = parsed.shape[m.begin];
+    const turn = osmandTurn(m);
+    let label = maneuverLabel(m);
+    if (m.type >= 1 && m.type <= 3 && m.leg > 0) label = `Riparti da ${shortPlace(breakNames[m.leg] || '')}${label.replace(/^Parti/, '')}`;
+    if (m.type >= 4 && m.type <= 6) label = `Arrivo a ${shortPlace(breakNames[m.leg + 1] || breakNames[breakNames.length - 1] || '')}`;
+    x +=
+      `    <rtept lat="${coord(la)}" lon="${coord(lo)}">\n` +
+      `      <name>${escapeXml(`${kmLabel(m.km)} ${label}`.replace(/: $/, ''))}</name>\n` +
+      `      <cmt>${escapeXml(m.instruction || '')}</cmt>\n` +
+      `      <desc>${escapeXml(maneuverDetail(m))}</desc>\n` +
+      '      <extensions>\n' +
+      `        <osmand:time>${Math.round(m.time)}</osmand:time>\n` +
+      `        <osmand:offset>${indexOf.get(parsed.shape[m.begin])}</osmand:offset>\n` +
+      (turn ? `        <osmand:turn>${turn}</osmand:turn>\n` : '') +
+      '      </extensions>\n' +
+      '    </rtept>\n';
+  }
+  x += '  </rte>\n';
+  x += `  <trk>\n    <name>${escapeXml(name)}</name>\n    <desc>${escapeXml(desc)}</desc>\n    <trkseg>\n`;
+  for (const [la, lo] of simplified) x += `      <trkpt lat="${coord(la)}" lon="${coord(lo)}"/>\n`;
+  x += '    </trkseg>\n  </trk>\n</gpx>\n';
+  return { xml: x, instructions: steps.length, points: simplified.length };
+}
+
 // ---------------------------------------------------------------------------
 // Roadbook e formattazione
 // ---------------------------------------------------------------------------
@@ -716,6 +826,7 @@ export function formatKm(km) {
 
 export function formatDuration(seconds) {
   if (seconds == null || Number.isNaN(seconds)) return '–';
+  if (seconds > 0 && seconds < 30) return 'meno di 1 min';
   const totalMin = Math.round(seconds / 60);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
