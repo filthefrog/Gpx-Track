@@ -11,10 +11,12 @@ con **BMW Motorrad Connected** o con un navigatore montato sulla predisposizione
 
 ## In breve
 
-1. Scrivi le località in ordine, una per riga (es. Sirolo, Passo dello Stelvio, Passo di Gavia, Ponte di Legno).
-2. Scegli le preferenze (per esempio autostrade «Evita»).
-3. Tocca **Calcola il percorso**, poi **Scarica GPX turn by turn** o **Invia a…** per aprirlo direttamente
-   nell'app che usi (OsmAnd o simili).
+1. Scrivi la partenza e premi **Invio**: si apre subito la riga successiva. Continua così fino all'arrivo
+   (oppure incolla un elenco, una località per riga).
+2. Sotto ogni tappa vedi cosa è stato trovato (tipo di luogo, comune, provincia). Se non è quello giusto tocca
+   **Non è questo?** e scegli tra gli altri risultati.
+3. Il percorso si calcola da solo. In basso trovi km, tempo e **Scarica GPX**; l'icona accanto apre il foglio
+   di condivisione di iPhone per mandarlo direttamente all'app che usi (OsmAnd o simili).
 
 Il file `nome-del-giro_AAAA-MM-GG_turn-by-turn.gpx` contiene tutto in un solo GPX 1.1:
 
@@ -33,21 +35,28 @@ Il cambio nome della strada e l'uscita dalla rotonda (già detta all'ingresso) n
 
 ## Funzioni
 
-- **Località in ordine**: una per riga; le tappe vengono cercate in ordine e il percorso si calcola da solo.
-  Se una località è sbagliata si corregge in «Modifica le tappe a mano» (ricerca, tocco sulla mappa, marker trascinabili).
-- **Tappe**: partenza, intermedie e arrivo, dalla ricerca (premi invio) o toccando la mappa.
-  Ogni nuovo punto va «in fondo» oppure «come intermedia»: in questo caso viene inserito dove allunga meno il giro.
-  I marker sono numerati e trascinabili; le tappe si riordinano con le frecce, si rinominano e si eliminano.
-- **Sosta o passaggio** per ogni tappa intermedia (in Valhalla: `break` o `through`). Un passaggio non spezza il percorso
-  in tratte e non permette inversioni a U lì.
-- **Torna alla partenza** per costruire anelli.
-- **Preferenze**: autostrade Evita / Se serve / Normale (`use_highways` 0 / 0,5 / 1), pedaggi, traghetti,
-  sterrato (`use_trails` 0 per evitarlo), percorso più veloce o più corto.
-- **Risultato**: linea sulla mappa, km e tempo totali e per tratta, roadbook con km progressivi in italiano e «Copia roadbook».
-  Tocca una riga del roadbook per vedere il punto sulla mappa.
-- **Export GPX 1.1** (vedi sotto) con «Scarica» e «Invia a…» (foglio di condivisione di iPhone).
-- **Salvataggio** dei giri sul dispositivo e **link condivisibile**: lo stato del giro è nell'indirizzo, quindi un link
-  aperto sul telefono mostra lo stesso giro preparato sul PC.
+- **Elenco delle tappe**: ogni riga è un campo di ricerca. Si riordina trascinando la maniglia ≡, si elimina con ✕.
+  «Aggiungi tappa» aggiunge una riga; «Usa la mia posizione» imposta la partenza dove ti trovi.
+- **Ricerca dei luoghi** pensata per i giri in moto:
+  - tra i risultati di Nominatim vengono preferiti paesi, città e passi, e gli omonimi vicini alle altre tappe
+    («Castel San Pietro» dopo Bologna è quello in Emilia, non quello in Svizzera);
+  - «Passo Gavia», «Colle Agnello» e simili vengono cercati anche senza la parola generica, privilegiando i passi;
+  - accetta coordinate (`46.5286, 10.4532`, `46,5286 10,4532`, `46°31'43"N 10°27'11"E`) e link di Google Maps,
+    Apple Maps e OpenStreetMap;
+  - un elenco incollato in una riga diventa più tappe (righe, `;` oppure `A → B → C`).
+- **Aggancio alla strada**: paesi e passi trovati con la ricerca vengono collegati a una strada vera
+  (Valhalla esclude strade di servizio e sentieri vicino a quel punto). Se lì non c'è nessuna strada adatta,
+  il calcolo riprova senza filtro. I punti toccati o trascinati sulla mappa restano esattamente dove sono.
+- **Tocco sulla mappa**: mostra nome e zona del punto con «Usa come tappa…» oppure «Inserisci tra le tappe»
+  (nella posizione che allunga meno il giro). I marker numerati si trascinano.
+- **Sosta o passaggio** per le tappe intermedie: tocca l'etichetta sotto la tappa. Un passaggio non spezza il
+  percorso in tratte e non permette inversioni a U lì.
+- **Anello** per tornare alla partenza.
+- **Preferenze** (richiudibili, con riepilogo): autostrade Evita / Se servono / Sì (`use_highways` 0 / 0,5 / 1),
+  sterrato (`use_trails` 0 per evitarlo), pedaggi, traghetti, percorso più veloce o più corto.
+- **Percorso**: tratte con km e tempo, totale e indicazioni svolta per svolta con km progressivi (tocca una riga per
+  vederla sulla mappa, «Copia le indicazioni» per il testo).
+- **Giri salvati** sul dispositivo e **link condivisibile** con lo stato del giro nell'indirizzo.
 
 ## Altri formati: Traccia e Rotta (navigatori Garmin e BMW)
 
@@ -165,9 +174,11 @@ Consigli:
 index.html              pagina, meta per iPhone, Leaflet da cdnjs
 css/style.css           stile mobile first, tema chiaro e scuro, safe area
 js/core.js              funzioni pure: polyline, RDP, inserimento tappe, GPX, roadbook, stato nell'URL
+js/places.js            funzioni pure per i luoghi: coordinate, varianti di ricerca, ordine dei risultati
 js/services.js          Valhalla e Nominatim (coda a 1 richiesta al secondo)
 js/app.js               interfaccia
 tests/core.test.mjs     test delle funzioni pure (Node, senza dipendenze)
+tests/places.test.mjs   test della ricerca dei luoghi
 tests/collaudo.mjs      collaudo con i servizi reali
 ```
 
