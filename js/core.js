@@ -448,6 +448,41 @@ export function splitForDistance(stops, maxMeters) {
   return chunks;
 }
 
+/** Vero se il giro ha più località di quante il server ne accetti per richiesta (errore 150). */
+export function isLocationsError(err) {
+  return !!err && err.error_code === 150;
+}
+
+/** Numero massimo di località letto dal messaggio ("Exceeded max locations of 20."), o null. */
+export function locationLimit(err) {
+  const m = String((err && err.error) || '').match(/max(?:imum)? locations?\s*(?:of|:)?\s*(\d+)/i);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Divide le tappe in pezzi di al massimo `max` località che condividono la tappa di confine.
+ * Il taglio cade, se possibile, su una sosta vera: mai su un punto di passaggio né sui punti
+ * ausiliari dei versanti dei passi (spezzerebbero la salita o la discesa).
+ * Restituisce [[inizio, fine], ...] (indici inclusi).
+ */
+export function splitForLocations(stops, max) {
+  const m = Math.max(2, Math.floor(max));
+  const n = stops.length;
+  const chunks = [];
+  let start = 0;
+  while (n - start > m) {
+    let end = start + m - 1;
+    // arretra fino a una sosta vera, ma senza buttare via più di metà del pezzo
+    let cut = end;
+    while (cut > start + Math.ceil(m / 2) && (stops[cut].type === 'through' || stops[cut].aux)) cut--;
+    if (stops[cut].type === 'through' || stops[cut].aux) cut = end;
+    chunks.push([start, cut]);
+    start = cut;
+  }
+  chunks.push([start, n - 1]);
+  return chunks;
+}
+
 /** Unisce i viaggi calcolati a pezzi in un unico viaggio Valhalla. */
 export function mergeTrips(trips) {
   return {
@@ -505,7 +540,7 @@ function explainValhallaMessage(err, stops = []) {
         : 'Nessun percorso trovato tra le tappe. Controlla che non siano su isole o su strade escluse dalle preferenze (sterrato, traghetti, autostrade) e prova ad allentare le preferenze.';
     case 154:
     case 150:
-      return 'Il giro è troppo lungo o ha troppe tappe per il server gratuito. Dividilo in due giri più corti.';
+      return 'Il giro è troppo lungo o ha troppe tappe anche per il calcolo a pezzi. Dividilo in due giri più corti.';
     case 157:
       return 'Le preferenze escludono tutte le strade possibili. Prova ad allentarle (per esempio autostrade "Se serve" o sterrato consentito).';
     default:

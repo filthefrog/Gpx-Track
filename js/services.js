@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { DEFAULT_OPTIONS, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610041832';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610041832';
-import { overpassQuery, passSides } from './passes.js?v=202610041832';
+import { DEFAULT_OPTIONS, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, isLocationsError, locationLimit, splitForLocations, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610130959';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610130959';
+import { overpassQuery, passSides } from './passes.js?v=202610130959';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const HEIGHT_URL = 'https://valhalla1.openstreetmap.de/height';
@@ -101,8 +101,44 @@ export async function fetchRoute(stops, loop, options, signal) {
   try {
     return await fetchWhole(stops, loop, options, signal);
   } catch (e) {
+    if (isLocationsError(e)) return fetchByLocations(stops, loop, options, signal, e);
     if (!isDistanceError(e)) throw e;
     return fetchInPieces(stops, loop, options, signal, e);
+  }
+}
+
+/** Un pezzo di giro: se supera la distanza del server si calcola a sua volta a pezzi. */
+async function fetchChunk(slice, options, signal) {
+  try {
+    return await fetchWhole(slice, false, options, signal);
+  } catch (e) {
+    if (!isDistanceError(e)) throw e;
+    return fetchInPieces(slice, false, options, signal, e);
+  }
+}
+
+/**
+ * Troppe località per una richiesta (il server gratuito ne accetta poche: il limite è nel messaggio
+ * d'errore): il giro si calcola a pezzi che lo rispettano e si uniscono. Se il limite non è leggibile
+ * o è ancora troppo alto, si riprova con pezzi più piccoli.
+ */
+async function fetchByLocations(stops, loop, options, signal, err) {
+  const all = loop && stops.length >= 2 ? [...stops, { ...stops[0], type: 'break' }] : stops;
+  let max = locationLimit(err) || 20;
+  for (;;) {
+    try {
+      const trips = [];
+      let costing = 'motorcycle';
+      for (const [a, b] of splitForLocations(all, max)) {
+        const res = await fetchChunk(all.slice(a, b + 1), options, signal);
+        trips.push(res.trip);
+        if (res.costing === 'auto') costing = 'auto';
+      }
+      return { trip: mergeTrips(trips), costing, warning: costing === 'auto' ? AUTO_WARNING : null };
+    } catch (e) {
+      if (!isLocationsError(e) || max <= 2) throw e;
+      max = Math.max(2, Math.floor(max * 0.6));
+    }
   }
 }
 

@@ -75,3 +75,28 @@ test('pointAtDistance: punto alla distanza lungo la geometria', async () => {
   const q = pointAtDistance(shape, cum, cum[1] * 0.25);
   assert.ok(Math.abs(q[1] - 10.0025) < 1e-6);
 });
+
+test('limite di località: lettura del messaggio e divisione in pezzi', async () => {
+  const { isLocationsError, locationLimit, splitForLocations } = await import('../js/core.js');
+  assert.equal(isLocationsError({ error_code: 150 }), true);
+  assert.equal(isLocationsError({ error_code: 154 }), false);
+  assert.equal(locationLimit({ error: 'Exceeded max locations of 20.' }), 20);
+  assert.equal(locationLimit({ error: 'Exceeded max locations: 8' }), 8);
+  assert.equal(locationLimit({ error: 'altro' }), null);
+  const mk = (n, over = {}) => Array.from({ length: n }, (_, i) => ({ lat: 45, lon: 10 + i / 100, type: 'break', ...(over[i] || {}) }));
+  // 25 tappe, al massimo 10 per richiesta: i pezzi si agganciano e coprono tutto
+  const chunks = splitForLocations(mk(25), 10);
+  assert.ok(chunks.every(([a, b]) => b - a + 1 <= 10));
+  assert.equal(chunks[0][0], 0);
+  assert.equal(chunks.at(-1)[1], 24);
+  for (let i = 1; i < chunks.length; i++) assert.equal(chunks[i][0], chunks[i - 1][1]);
+  // meno tappe del limite: un solo pezzo
+  assert.deepEqual(splitForLocations(mk(5), 10), [[0, 4]]);
+  // il taglio evita i passaggi e i punti dei versanti
+  const stops = mk(15, { 9: { type: 'through' }, 8: { aux: true }, 7: { type: 'through' } });
+  const [first] = splitForLocations(stops, 10);
+  assert.ok(first[1] <= 6, `taglio a ${first[1]}`);
+  assert.equal(stops[first[1]].type, 'break');
+  // limite minimo 2: ogni tratta da sola
+  assert.deepEqual(splitForLocations(mk(4), 2), [[0, 1], [1, 2], [2, 3]]);
+});
