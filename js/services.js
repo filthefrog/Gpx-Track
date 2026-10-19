@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { DEFAULT_OPTIONS, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, splitForDistance, isLocationsError, locationLimit, splitForLocations, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610130959';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610130959';
-import { overpassQuery, passSides } from './passes.js?v=202610130959';
+import { DEFAULT_OPTIONS, haversine, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, isLocationsError, locationLimit, nextChunkEnd, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610191722';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610191722';
+import { overpassQuery, passSides } from './passes.js?v=202610191722';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const HEIGHT_URL = 'https://valhalla1.openstreetmap.de/height';
@@ -98,55 +98,18 @@ let motorcycleRejected = false;
  */
 export async function fetchRoute(stops, loop, options, signal) {
   if (options && options.style === 'scenic') return fetchScenic(stops, loop, options, signal);
+  // limiti già visti in un calcolo precedente: se il giro li supera si parte direttamente a pezzi
+  const all = loop && stops.length >= 2 ? [...stops, stops[0]] : stops;
+  if ((learned.locs && all.length > learned.locs * learned.locations) || (learned.meters && chainMeters(all) > learned.meters * learned.distance))
+    return fetchInPieces(stops, loop, options, signal, null);
   try {
     return await fetchWhole(stops, loop, options, signal);
   } catch (e) {
-    if (isLocationsError(e)) return fetchByLocations(stops, loop, options, signal, e);
-    if (!isDistanceError(e)) throw e;
+    if (!isLocationsError(e) && !isDistanceError(e)) throw e;
     return fetchInPieces(stops, loop, options, signal, e);
   }
 }
 
-/** Un pezzo di giro: se supera la distanza del server si calcola a sua volta a pezzi. */
-async function fetchChunk(slice, options, signal) {
-  try {
-    return await fetchWhole(slice, false, options, signal);
-  } catch (e) {
-    if (!isDistanceError(e)) throw e;
-    return fetchInPieces(slice, false, options, signal, e);
-  }
-}
-
-/**
- * Troppe località per una richiesta (il server gratuito ne accetta poche: il limite è nel messaggio
- * d'errore): il giro si calcola a pezzi che lo rispettano e si uniscono. Se il limite non è leggibile
- * o è ancora troppo alto, si riprova con pezzi più piccoli.
- */
-async function fetchByLocations(stops, loop, options, signal, err) {
-  const all = loop && stops.length >= 2 ? [...stops, { ...stops[0], type: 'break' }] : stops;
-  let max = locationLimit(err) || 20;
-  for (;;) {
-    try {
-      const trips = [];
-      let costing = 'motorcycle';
-      for (const [a, b] of splitForLocations(all, max)) {
-        const res = await fetchChunk(all.slice(a, b + 1), options, signal);
-        trips.push(res.trip);
-        if (res.costing === 'auto') costing = 'auto';
-      }
-      return { trip: mergeTrips(trips), costing, warning: costing === 'auto' ? AUTO_WARNING : null };
-    } catch (e) {
-      if (!isLocationsError(e) || max <= 2) throw e;
-      max = Math.max(2, Math.floor(max * 0.6));
-    }
-  }
-}
-
-/**
- * Giro più lungo del limite del server (500 km in linea d'aria per la moto sul server
- * FOSSGIS): si calcola a pezzi e si uniscono i risultati. Se una tratta da sola supera
- * il limite, si usa il profilo auto, che ha un limite molto più alto.
- */
 /**
  * Percorso panoramico: per ogni tratto tra due tappe si chiedono al server fino a 3 percorsi
  * (Valhalla dà le alternative solo tra due punti), se ne misurano le curve e si tiene il più
@@ -192,40 +155,93 @@ async function fetchScenic(stops, loop, options, signal) {
   };
 }
 
+// Quanto il server "misura" in più rispetto alla somma in linea d'aria che calcoliamo noi: si impara dagli
+// errori e si ricorda per i giri successivi, ma solo dopo un calcolo riuscito (un fallimento non deve
+// peggiorare i giri seguenti).
+const learned = { distance: 0.9, locations: 1, meters: 0, locs: 0 };
+
+/** Azzera quanto imparato dal server (per i test). */
+export function resetLearnedLimits() {
+  Object.assign(learned, { distance: 0.9, locations: 1, meters: 0, locs: 0 });
+}
+
 /**
  * Strada "veloce" tra le tappe, come la sceglierebbero Google o Apple: profilo auto,
  * autostrade e pedaggi ammessi. Serve solo per capire dove il giro se ne allontana
  * (link di Google Maps e Apple Mappe). Restituisce la geometria [[lat, lon], ...].
+ * Se il server rifiuta il giro intero (troppe tappe o chilometri) lo si calcola a pezzi.
  */
 export async function fetchFastShape(stops, loop, signal) {
   const options = { ...DEFAULT_OPTIONS, highways: 1, avoidTolls: false, avoidFerries: false, avoidUnpaved: true, style: 'direct' };
   const pts = stops.map((s) => ({ ...s, type: 'break' }));
-  const res = await fetchWhole(pts, loop, options, signal, true);
+  let res;
+  try {
+    res = await fetchWhole(pts, loop, options, signal, true);
+  } catch (e) {
+    if (!isLocationsError(e) && !isDistanceError(e)) throw e;
+    res = await fetchInPieces(pts, loop, options, signal, e, true);
+  }
   return parseTrip(res.trip).shape;
 }
 
-async function fetchInPieces(stops, loop, options, signal, err) {
+/**
+ * Giro che il server rifiuta in una sola richiesta (troppe località, errore 150, o troppi chilometri, errore 154):
+ * si calcola a pezzi consecutivi e si uniscono i risultati.
+ *  - i limiti si leggono dal messaggio del server, con un margine; se un pezzo viene rifiutato lo stesso (il server
+ *    misura in modo diverso dal nostro) il pezzo si accorcia e si riprova, fino a trovare la misura giusta;
+ *  - i tagli cadono su soste vere, mai su un passaggio o dentro la salita di un passo;
+ *  - una tratta che da sola supera il limite del profilo moto si calcola con il profilo auto (con un avviso).
+ */
+async function fetchInPieces(stops, loop, options, signal, err, autoOnly = false) {
   const all = loop && stops.length >= 2 ? [...stops, { ...stops[0], type: 'break' }] : stops;
-  const serverLimit = distanceLimit(err) || 500000;
-  const limit = serverLimit * 0.9; // margine: il server misura in modo leggermente diverso
-  const chunks = splitForDistance(all, limit);
-  if (!chunks) {
-    // solo per questo calcolo: il profilo moto resta quello predefinito
-    const res = await fetchWhole(stops, loop, options, signal, true);
-    return {
-      ...res,
-      warning:
-        `Una tratta supera i ${Math.round(serverLimit / 1000)} km in linea d'aria, oltre il limite del profilo moto del server: il percorso è calcolato come per un'auto. Aggiungi una tappa intermedia per usare il profilo moto.`,
-    };
-  }
+  // limiti del server, quando si conoscono (si aggiornano a ogni errore)
+  let serverMeters = (isDistanceError(err) && distanceLimit(err)) || learned.meters || Infinity;
+  let serverLocs = (isLocationsError(err) && (locationLimit(err) || 20)) || learned.locs || Infinity;
+  let dScale = learned.distance;
+  let lScale = learned.locations;
   const trips = [];
   let costing = 'motorcycle';
-  for (const [a, b] of chunks) {
-    const res = await fetchWhole(all.slice(a, b + 1), false, options, signal);
-    trips.push(res.trip);
-    if (res.costing === 'auto') costing = 'auto';
+  let usedAuto = false;
+  let start = 0;
+  let guard = 0;
+  let forceAutoAt = -1; // tratta singola rifiutata come moto: si riprova come auto
+  while (start < all.length - 1) {
+    if (++guard > 400) throw err; // sicurezza contro cicli infiniti: non si dovrebbe mai arrivare qui
+    const end = nextChunkEnd(all, start, { maxMeters: serverMeters * dScale, maxLocations: serverLocs * lScale });
+    const single = end < 0 || forceAutoAt === start;
+    const slice = all.slice(start, (single ? start + 1 : end) + 1);
+    try {
+      // una tratta oltre il limite del profilo moto va calcolata come auto
+      const res = await fetchWhole(slice, false, options, signal, single || autoOnly);
+      trips.push(res.trip);
+      if (res.costing === 'auto') costing = 'auto';
+      if (single && !autoOnly) usedAuto = true;
+      start += slice.length - 1;
+    } catch (e) {
+      if (single) throw e; // una tratta da sola che il server rifiuta anche come auto: errore vero
+      if (isDistanceError(e)) {
+        if (slice.length <= 2) forceAutoAt = start;
+        else if (Number.isFinite(serverMeters)) dScale = Math.max(0.02, dScale * 0.7);
+        else serverMeters = distanceLimit(e) || chainMeters(slice) * 0.7; // primo errore di distanza: ora si conosce
+      } else if (isLocationsError(e) && slice.length > 2) {
+        if (Number.isFinite(serverLocs)) lScale = Math.max(0.1, lScale * 0.6);
+        else serverLocs = locationLimit(e) || Math.max(2, Math.floor(slice.length * 0.6));
+      } else throw e;
+    }
   }
-  return { trip: mergeTrips(trips), costing, warning: costing === 'auto' ? AUTO_WARNING : null };
+  learned.distance = dScale;
+  learned.locations = lScale;
+  if (Number.isFinite(serverMeters)) learned.meters = serverMeters;
+  if (Number.isFinite(serverLocs)) learned.locs = serverLocs;
+  let warning = null;
+  if (usedAuto) warning = 'Una tratta supera il limite di distanza del profilo moto del server: è calcolata come per un\'auto. Aggiungi una tappa intermedia per restare sul profilo moto.';
+  else if (costing === 'auto') warning = AUTO_WARNING;
+  return { trip: mergeTrips(trips), costing, warning };
+}
+
+/** Somma in metri delle distanze in linea d'aria tra le tappe consecutive. */
+function chainMeters(list) {
+  return list.slice(1).reduce((a, s, i) => a + haversine([list[i].lat, list[i].lon], [s.lat, s.lon]), 0);
 }
 
 async function fetchWhole(stops, loop, options, signal, forceAuto = false, alternates = 0) {

@@ -100,3 +100,35 @@ test('limite di località: lettura del messaggio e divisione in pezzi', async ()
   // limite minimo 2: ogni tratta da sola
   assert.deepEqual(splitForLocations(mk(4), 2), [[0, 1], [1, 2], [2, 3]]);
 });
+
+test('nextChunkEnd: pezzi entro distanza e località, tagli sulle soste', async () => {
+  const { nextChunkEnd } = await import('../js/core.js');
+  // punti a distanza di circa 11,1 km uno dall'altro (0,1° di latitudine)
+  const mk = (n, over = {}) => Array.from({ length: n }, (_, i) => ({ lat: 45 + i / 10, lon: 10, type: 'break', ...(over[i] || {}) }));
+  const stops = mk(20);
+  // nessun limite: tutto in un pezzo
+  assert.equal(nextChunkEnd(stops, 0), 19);
+  // 50 km: al massimo 4 tratte (4 × 11,1 = 44,5 km) → fine all'indice 4
+  assert.equal(nextChunkEnd(stops, 0, { maxMeters: 50000 }), 4);
+  // 5 località al massimo → fine all'indice 4
+  assert.equal(nextChunkEnd(stops, 0, { maxLocations: 5 }), 4);
+  // partendo da un indice interno
+  assert.equal(nextChunkEnd(stops, 4, { maxLocations: 5 }), 8);
+  // la prima tratta supera il limite: da sola
+  assert.equal(nextChunkEnd(stops, 0, { maxMeters: 5000 }), -1);
+  // il taglio evita passaggi e punti ausiliari
+  const s2 = mk(20, { 4: { type: 'through' }, 3: { aux: true } });
+  const cut = nextChunkEnd(s2, 0, { maxLocations: 5 });
+  assert.ok(cut <= 2, `taglio a ${cut}`);
+  assert.equal(s2[cut].type, 'break');
+  // percorrendo tutto il giro i pezzi si agganciano e coprono tutto
+  let at = 0;
+  const ends = [];
+  while (at < stops.length - 1) {
+    const e = nextChunkEnd(stops, at, { maxMeters: 60000, maxLocations: 6 });
+    assert.ok(e > at);
+    ends.push(e);
+    at = e;
+  }
+  assert.equal(ends.at(-1), 19);
+});

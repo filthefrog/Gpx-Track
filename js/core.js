@@ -483,6 +483,33 @@ export function splitForLocations(stops, max) {
   return chunks;
 }
 
+/**
+ * Fine del prossimo pezzo di un giro calcolato a pezzi, a partire dall'indice `start`: il pezzo più lungo che
+ * rispetta `maxMeters` (somma delle distanze in linea d'aria tra le località) e `maxLocations`.
+ * Il taglio cade, se possibile, su una sosta vera (mai su un passaggio o su un punto ausiliario dei passi).
+ * Restituisce l'indice finale (almeno start + 1), oppure -1 se già la prima tratta supera `maxMeters`
+ * (va calcolata da sola con un altro profilo).
+ */
+export function nextChunkEnd(stops, start, { maxMeters = Infinity, maxLocations = Infinity } = {}) {
+  const n = stops.length;
+  let end = start + 1;
+  let acc = haversine([stops[start].lat, stops[start].lon], [stops[end].lat, stops[end].lon]);
+  if (acc > maxMeters) return -1;
+  const cap = Math.max(2, Math.floor(maxLocations));
+  while (end < n - 1 && end - start + 2 <= cap) {
+    const hop = haversine([stops[end].lat, stops[end].lon], [stops[end + 1].lat, stops[end + 1].lon]);
+    if (acc + hop > maxMeters) break;
+    acc += hop;
+    end++;
+  }
+  if (end >= n - 1) return n - 1;
+  // arretra fino a una sosta vera, ma senza buttare via più di metà del pezzo
+  let cut = end;
+  const min = start + Math.max(1, Math.ceil((end - start) / 2));
+  while (cut > min && (stops[cut].type === 'through' || stops[cut].aux)) cut--;
+  return stops[cut].type === 'through' || stops[cut].aux ? end : cut;
+}
+
 /** Unisce i viaggi calcolati a pezzi in un unico viaggio Valhalla. */
 export function mergeTrips(trips) {
   return {
