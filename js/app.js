@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610221958';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610221958';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610221958';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610221958';
-import { CONFIG } from './config.js?v=202610221958';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610221958';
-import { mountRoadbookView } from './roadbook-view.js?v=202610221958';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610221958';
+} from './core.js?v=202610222005';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm } from './places.js?v=202610222005';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610222005';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610222005';
+import { CONFIG } from './config.js?v=202610222005';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610222005';
+import { mountRoadbookView } from './roadbook-view.js?v=202610222005';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610222005';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -567,6 +567,8 @@ function renderMeta(meta, s, i, role) {
   }
   if (s.context) span('ctx', s.kind && s.kind !== 'Città' && s.kind !== 'Paese' && s.kind !== 'Località' ? `${s.kind} · ${s.context}` : s.context);
   else if (s.kind) span('kind', s.kind);
+  const far = farOffKm(state.stops, i);
+  if (far) span('warn-text', `Sembra lontana dal giro (+${far} km): è il posto giusto?`);
   const movable = role === 'break' || role === 'through';
   // di regola la riga resta pulita: sosta/passaggio e modalità del passo si aprono con «Opzioni»,
   // ma ciò che non è il valore normale (un passaggio, un passo scelto a mano, un'inversione) si vede sempre
@@ -802,6 +804,7 @@ function altList(s) {
     li.querySelector('.a-ctx').textContent = [c.kind, c.context].filter(Boolean).join(' · ');
     li.addEventListener('click', () => {
       applyCandidate(s, c);
+      s.manual = true; // scelta dell'utente: la correzione automatica degli omonimi non la tocca
       s.showAlts = false;
       changed();
       map.setView([c.lat, c.lon], Math.max(map.getZoom(), 10));
@@ -854,7 +857,7 @@ async function commit(stop, text) {
 }
 
 async function resolveStop(stop, q) {
-  Object.assign(stop, { query: q, status: 'searching', message: '', candidates: [], showAlts: false, lat: null, lon: null });
+  Object.assign(stop, { manual: false, query: q, status: 'searching', message: '', candidates: [], showAlts: false, lat: null, lon: null });
   changed();
   try {
     const found = await searchPlaces(q, { near: nearPoint(stop) });
@@ -869,8 +872,14 @@ async function resolveStop(stop, q) {
     if (!state.stops.includes(stop)) return;
     Object.assign(stop, { status: 'notfound', message: err.message });
   }
+  refineHomonyms();
   changed();
   if (isPlaced(stop) && placed().length === 1) map.setView([stop.lat, stop.lon], 10);
+}
+
+/** Tra più omonimi sceglie quello che non allunga il giro (ripassa tutte le tappe, i vicini cambiano). */
+function refineHomonyms() {
+  for (const { index, candidate } of pickByNeighbours(state.stops)) applyCandidate(state.stops[index], candidate);
 }
 
 /** Un elenco incollato in una riga diventa più righe, cercate in ordine. */
@@ -1555,6 +1564,8 @@ function renderResult() {
     li.querySelector('.leg-num').textContent = `${formatKm(leg.length)} · ${formatDuration(leg.time)}`;
     legs.appendChild(li);
   });
+  $('#legs-fold').hidden = p.legs.length < 2;
+  $('#legs-title').textContent = `Tratte (${p.legs.length})`;
   if (p.legs.length > 1) {
     const li = document.createElement('li');
     li.innerHTML = '<span class="leg-name"><b>Totale</b></span><span class="leg-num"></span>';
@@ -2197,7 +2208,7 @@ function renderSaved() {
   ul.textContent = '';
   $('#saved-summary').textContent = list.length
     ? `${list.length} ${list.length === 1 ? 'giro salvato' : 'giri salvati'} su questo dispositivo`
-    : 'Salva o apri il giro su un altro dispositivo';
+    : 'Giri salvati, roadbook, traccia e rotta';
   for (const t of list) {
     const li = document.createElement('li');
     li.innerHTML = `

@@ -7,7 +7,7 @@
 // "passaggi" prima e dopo il passo, obbligano il percorso a salire e scendere dal
 // versante scelto.
 
-import { haversine, pointSegmentDistance, cumulativeDistances } from './core.js?v=202610221958';
+import { haversine, pointSegmentDistance, cumulativeDistances } from './core.js?v=202610222005';
 
 export const PASS = Object.freeze({
   SEARCH_RADIUS: 5000, // metri attorno al passo da chiedere a Overpass
@@ -275,7 +275,7 @@ export function passCrossing(shape, summit, cum) {
  * strada: succede quando il punto della tappa cade su una laterale e la tappa è una "sosta".
  * Restituisce gli indici delle tappe (esclusi i punti ausiliari dei passi e quelli dei passi stessi).
  */
-export function findSpurs(shape, stops, { window = 300, tolerance = 45 } = {}) {
+export function findSpurs(shape, stops, { window = 150, tolerance = 35 } = {}) {
   if (!shape || shape.length < 4) return [];
   const cum = cumulativeDistances(shape);
   const total = cum[cum.length - 1];

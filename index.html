@@ -33,11 +33,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/roadbook.css?v=202610221958">
-  <link rel="stylesheet" href="css/style.css?v=202610221958">
+  <link rel="stylesheet" href="css/roadbook.css?v=202610222005">
+  <link rel="stylesheet" href="css/style.css?v=202610222005">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610221958"></script>
+  <script type="module" src="js/app.js?v=202610222005"></script>
 </head>
 <body>
   <header class="site-top">
@@ -162,17 +162,15 @@
           <div class="hero" id="route-hero"></div>
           <div class="elevation" id="route-elevation" hidden></div>
           <div class="curves" id="route-curves"></div>
-          <ol id="legs" class="legs"></ol>
+          <details class="inner-fold" id="legs-fold">
+            <summary><span id="legs-title">Tratte</span></summary>
+            <ol id="legs" class="legs"></ol>
+          </details>
           <details class="inner-fold" id="roadbook-fold">
             <summary><span id="roadbook-title">Indicazioni</span></summary>
             <ol id="roadbook" class="roadbook"></ol>
             <button type="button" class="btn small secondary" id="btn-copy-roadbook">Copia le indicazioni</button>
           </details>
-          <p class="hint how-to-open">Come aprirlo:
-            <a href="guide/gpx-osmand/" target="_blank" rel="noopener">OsmAnd</a> ·
-            <a href="guide/gpx-whip-live/" target="_blank" rel="noopener">Whip Live</a> ·
-            <a href="guide/google-maps-apple-mappe/" target="_blank" rel="noopener">Google Maps e Apple Mappe</a> ·
-            <a href="guide/roadbook-rally/" target="_blank" rel="noopener">Roadbook da rally</a></p>
         </div>
         <div class="start-here" id="result-empty">
           <p class="start-title">Come si fa</p>
@@ -210,8 +208,8 @@
 
       <details class="card fold" id="export-card">
         <summary>
-          <span class="fold-title">Altri formati</span>
-          <span class="fold-sub">Roadbook, traccia e rotta (Garmin, BMW)</span>
+          <span class="fold-title">Salva ed esporta</span>
+          <span class="fold-sub" id="saved-summary">Giri salvati, roadbook, traccia e rotta</span>
         </summary>
         <div class="fold-body export">
           <div class="export-item">
@@ -240,24 +238,18 @@
               <button type="button" class="btn secondary" id="btn-route-share" disabled>Invia a…</button>
             </div>
           </div>
-        </div>
-      </details>
-
-      <details class="card fold" id="saved-card">
-        <summary>
-          <span class="fold-title">Giri salvati</span>
-          <span class="fold-sub" id="saved-summary">Salva o apri il giro su un altro dispositivo</span>
-        </summary>
-        <div class="fold-body">
-          <div class="btn-row">
-            <button type="button" class="btn secondary" id="btn-save">Salva</button>
-            <button type="button" class="btn secondary" id="btn-share-link">Condividi link</button>
+          <div class="export-item">
+            <strong>Giri salvati</strong>
+            <div class="btn-row">
+              <button type="button" class="btn secondary" id="btn-save">Salva</button>
+              <button type="button" class="btn secondary" id="btn-share-link">Condividi link</button>
+            </div>
+            <p class="hint">I giri salvati restano solo su questo dispositivo. Il link condiviso contiene tappe e
+              coordinate del giro: chi lo riceve le vede.</p>
+            <ul id="saved" class="saved"></ul>
+            <button type="button" class="btn ghost small danger" id="btn-wipe">Cancella tutti i miei dati</button>
+            <p class="hint small">Niente account né cookie: tutto resta su questo dispositivo. <a href="privacy/">Privacy</a></p>
           </div>
-          <p class="hint">I giri salvati restano solo su questo dispositivo. Il link condiviso contiene tappe e
-            coordinate del giro: chi lo riceve le vede.</p>
-          <ul id="saved" class="saved"></ul>
-          <button type="button" class="btn ghost small danger" id="btn-wipe">Cancella tutti i miei dati</button>
-          <p class="hint small">Niente account né cookie: tutto resta su questo dispositivo. <a href="privacy/">Privacy</a></p>
         </div>
       </details>
 

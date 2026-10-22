@@ -10,6 +10,8 @@ import {
   scorePlace,
   snapsToRoad,
   splitPlaces,
+  pickByNeighbours,
+  farOffKm,
 } from '../js/places.js';
 import { routeLocations, buildValhallaRequest, isSnapError } from '../js/core.js';
 
@@ -186,4 +188,33 @@ test('splitPlaces: elenchi incollati in vari formati', () => {
   assert.deepEqual(splitPlaces('Sirolo\n44.49, 11.34\nStelvio'), ['Sirolo', '44.49, 11.34', 'Stelvio']);
   // il trattino dentro un nome non divide
   assert.deepEqual(splitPlaces('Sesto San Giovanni-Nord'), ['Sesto San Giovanni-Nord']);
+});
+
+test('pickByNeighbours: tra due omonimi sceglie quello che non allunga il giro', () => {
+  const ok = (name, lat, lon, extra = {}) => ({ status: 'ok', name, lat, lon, ...extra });
+  const near = { lat: 44.15, lon: 11.4, name: 'Futa' };
+  const far = { lat: 45.6, lon: 9.5, name: 'Futa (altro)' };
+  const stops = [
+    ok('Firenzuola', 44.12, 11.38),
+    ok('Futa', far.lat, far.lon, { candidates: [far, near] }),
+    ok('Firenze', 43.77, 11.25),
+  ];
+  const picks = pickByNeighbours(stops);
+  assert.equal(picks.length, 1);
+  assert.equal(picks[0].index, 1);
+  assert.equal(picks[0].candidate, near);
+  // scelta a mano o già vicina: non si tocca
+  assert.deepEqual(pickByNeighbours([stops[0], { ...stops[1], manual: true }, stops[2]]), []);
+  assert.deepEqual(pickByNeighbours([stops[0], { ...stops[1], lat: near.lat, lon: near.lon }, stops[2]]), []);
+  // senza vicini da una parte non si decide
+  assert.deepEqual(pickByNeighbours([stops[1], stops[2]]), []);
+});
+
+test('farOffKm: avvisa solo per tappe molto fuori dal giro, non per i giri di andata e ritorno', () => {
+  const p = (lat, lon) => ({ status: 'ok', lat, lon });
+  assert.ok(farOffKm([p(44.12, 11.38), p(45.6, 9.5), p(43.77, 11.25)], 1) > 100);
+  assert.equal(farOffKm([p(44.12, 11.38), p(44.0, 11.3), p(43.77, 11.25)], 1), 0);
+  // andata e ritorno alla stessa partenza: la meta lontana è voluta
+  assert.equal(farOffKm([p(43.52, 13.6), p(46.5, 10.4), p(43.52, 13.6)], 1), 0);
+  assert.equal(farOffKm([p(43.52, 13.6), p(46.5, 10.4)], 0), 0);
 });

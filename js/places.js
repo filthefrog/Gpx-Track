@@ -1,7 +1,7 @@
 // Funzioni pure per trovare e descrivere i luoghi (risultati Nominatim).
 // Nessun accesso a rete o DOM: testate in tests/places.test.mjs.
 
-import { haversine } from './core.js?v=202610221958';
+import { haversine } from './core.js?v=202610222005';
 
 // ---------------------------------------------------------------------------
 // Coordinate scritte a mano o incollate da una mappa
@@ -316,4 +316,70 @@ export function splitPlaces(text) {
     // numerazione "1. " / "2) " / "- ": serve lo spazio dopo, altrimenti "44.49, 11.34" perderebbe "44."
     .map((s) => s.replace(/^\s*(?:\d+[.)]|[-•*])\s+/, '').trim())
     .filter(Boolean);
+}
+
+// ---------------------------------------------------------------------------
+// Omonimi: la tappa giusta è quella che non allunga il giro
+// ---------------------------------------------------------------------------
+
+/** Metri in più (in linea d'aria) per passare da `s` tra `prev` e `next`, invece di andare dritti. */
+export function detourMeters(prev, s, next) {
+  const a = [prev.lat, prev.lon];
+  const b = [s.lat, s.lon];
+  const c = [next.lat, next.lon];
+  return haversine(a, b) + haversine(b, c) - haversine(a, c);
+}
+
+const placedOk = (s) => s && s.status === 'ok' && s.lat != null;
+
+/** Tappa intermedia e vicini già trovati (prima e dopo), oppure null. */
+function neighbours(stops, i) {
+  let p = i - 1;
+  while (p >= 0 && !placedOk(stops[p])) p--;
+  let n = i + 1;
+  while (n < stops.length && !placedOk(stops[n])) n++;
+  return p >= 0 && n < stops.length ? [stops[p], stops[n]] : null;
+}
+
+/**
+ * Per le tappe con più candidati (omonimi) sceglie quello che allunga meno il giro: "Spino" a 300 km
+ * dalle tappe vicine è quasi sempre il posto sbagliato. Non tocca le tappe scelte a mano (`manual`).
+ * Restituisce [{ index, candidate }], da applicare in ordine.
+ */
+export function pickByNeighbours(stops, { minDetour = 40000 } = {}) {
+  const work = stops.map((s) => ({ ...s }));
+  const out = [];
+  work.forEach((s, i) => {
+    if (!placedOk(s) || s.manual || !s.candidates || s.candidates.length < 2) return;
+    const nb = neighbours(work, i);
+    if (!nb) return;
+    const now = detourMeters(nb[0], s, nb[1]);
+    if (now < minDetour) return;
+    let best = null;
+    let bestD = now;
+    for (const c of s.candidates) {
+      if (c.lat === s.lat && c.lon === s.lon) continue;
+      const d = detourMeters(nb[0], c, nb[1]);
+      if (d < bestD) {
+        best = c;
+        bestD = d;
+      }
+    }
+    if (best && now - bestD > 30000 && bestD < now * 0.5) {
+      out.push({ index: i, candidate: best });
+      Object.assign(work[i], { lat: best.lat, lon: best.lon });
+    }
+  });
+  return out;
+}
+
+/** Km di deviazione di una tappa che sembra fuori posto (più di 100 km e più del tragitto tra le vicine), altrimenti 0. */
+export function farOffKm(stops, i) {
+  const s = stops[i];
+  if (!placedOk(s)) return 0;
+  const nb = neighbours(stops, i);
+  if (!nb) return 0;
+  const direct = haversine([nb[0].lat, nb[0].lon], [nb[1].lat, nb[1].lon]);
+  const extra = detourMeters(nb[0], s, nb[1]);
+  return direct > 30000 && extra > 100000 && extra > 1.2 * direct ? Math.round(extra / 1000) : 0;
 }
