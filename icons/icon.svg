@@ -1,5 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect class="bg" width="512" height="512" rx="112" fill="#c8102e"/>
-  <path d="M120 420 C 200 420 150 320 246 300 S 350 236 300 176 S 340 96 402 104" fill="none" stroke="#ffffff" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M120 420 C 200 420 150 320 246 300 S 350 236 300 176 S 340 96 402 104" fill="none" stroke="#c8102e" stroke-width="7" stroke-linecap="round" stroke-dasharray="22 24"/>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff5a36"/>
+      <stop offset="1" stop-color="#c8102e"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#2a2d34"/>
+      <stop offset="1" stop-color="#14161a"/>
+    </linearGradient>
+    <clipPath id="c"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
+  <g clip-path="url(#c)">
+  <circle cx="372" cy="150" r="58" fill="#ffd166" opacity=".95"/>
+  <path d="M0 330 L120 230 L205 300 L300 210 L420 320 L512 270 V512 H0 Z" fill="#8e0b22" opacity=".55"/>
+  <path d="M-10 512 L-10 440 C 130 440 400 430 400 360 C 400 300 120 330 120 262 C 120 214 330 220 330 176 L 372 150 L 372 170 C 372 250 150 240 150 262 C 150 300 430 290 430 362 C 430 470 150 478 150 512 Z" fill="url(#road)"/>
+  </g>
+  <path d="M60 512 C 70 470 410 470 415 362 C 418 300 135 308 135 262 C 135 232 352 222 352 168" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-dasharray="26 26"/>
+  <path d="M352 168 m-34 -34 a34 34 0 1 1 68 0 c0 26 -34 50 -34 50 c0 0 -34 -24 -34 -50 z" fill="#fff" transform="translate(0 -6)"/>
+  <circle cx="352" cy="128" r="12" fill="#c8102e"/>
 </svg>
