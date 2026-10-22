@@ -81,6 +81,40 @@ test('queryVariants: per i passi prova anche il nome senza "Passo di"', () => {
   assert.equal(queryVariants('').length, 0);
 });
 
+test('queryVariants: parentesi, strade e abbreviazioni scritte alla buona', () => {
+  const qs = (t) => queryVariants(t).map((v) => v.q);
+  // il caso del giro Osimo → Livorno
+  const fipili = qs('Firenze Nord (superstrada Fi-Pi-Li)');
+  assert.ok(fipili.includes('Firenze Nord'));
+  assert.ok(fipili.includes('Firenze Nord, Strada di grande comunicazione Firenze-Pisa-Livorno'));
+  assert.ok(fipili.includes('Firenze'));
+  for (const w of ['Firenze nord PPL', 'Firenze nord fipili', 'Firenze Nord (superstrada fi pi li)'])
+    assert.ok(qs(w).some((q) => /Firenze-Pisa-Livorno/.test(q)), w);
+  assert.deepEqual(qs('Livorno Porto'), ['Livorno Porto', 'Porto di Livorno', 'Livorno']);
+  assert.ok(qs('Borgo S. Lorenzo').includes('Borgo San Lorenzo'));
+  assert.deepEqual(queryVariants('P.so della Futa')[1], { q: 'Passo della Futa', kind: 'pass' });
+  assert.ok(qs('SS 71, Arezzo').includes('Strada statale 71, Arezzo'));
+  assert.ok(qs('Città di Castello').includes('Citta di Castello'));
+  assert.ok(qs('Uscita Firenze Nord').includes('Firenze'));
+  // nessun doppione e non troppe richieste
+  for (const t of ['Firenze Nord (superstrada Fi-Pi-Li)', 'Passo dello Spino', 'Livorno Porto']) {
+    const l = qs(t).map((x) => x.toLowerCase());
+    assert.equal(new Set(l).size, l.length);
+    assert.ok(l.length <= 7);
+  }
+});
+
+test('splitPlaces: il giro con frecce e parentesi si divide nelle 10 tappe', () => {
+  const t = 'Osimo → Bocca Trabaria → Città di Castello → Passo dello Spino → Borgo San Lorenzo → Barberino di Mugello → Firenzuola → Passo della Futa → Firenze Nord (superstrada Fi-Pi-Li) → Livorno Porto';
+  const parts = splitPlaces(t);
+  assert.equal(parts.length, 10);
+  assert.equal(parts[8], 'Firenze Nord (superstrada Fi-Pi-Li)');
+});
+
+test('placeCategory: lo svincolo autostradale è una strada', () => {
+  assert.equal(placeCategory({ category: 'highway', type: 'motorway_junction' }), 'road');
+});
+
 test('placeCategory: passi riconosciuti come nodo naturale o come strada con mountain_pass', () => {
   assert.equal(placeCategory(GAVIA_PASS), 'pass');
   assert.equal(placeCategory(STELVIO_PASS), 'pass');

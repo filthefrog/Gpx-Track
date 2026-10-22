@@ -1,7 +1,7 @@
 // Funzioni pure per trovare e descrivere i luoghi (risultati Nominatim).
 // Nessun accesso a rete o DOM: testate in tests/places.test.mjs.
 
-import { haversine } from './core.js?v=202610191722';
+import { haversine } from './core.js?v=202610221948';
 
 // ---------------------------------------------------------------------------
 // Coordinate scritte a mano o incollate da una mappa
@@ -61,24 +61,96 @@ const GENERIC = {
 };
 const PREPOSITIONS = /^(?:(?:di|del|dello|della|dei|degli|delle|de|da|dal|dallo|dalla)\s+|(?:d|dell|dall|l)['’]\s*)/i;
 
+// Strade note che si scrivono in tanti modi: nome ufficiale che Nominatim conosce
+const ROAD_ALIASES = [
+  [/\b(?:fi[\s.\-/]*pi[\s.\-/]*li|fipili|ppl|p\.p\.l\.?)\b/i, 'Strada di grande comunicazione Firenze-Pisa-Livorno'],
+  [/\b(?:g\.?r\.?a\.?|raccordo anulare)\b/i, 'Grande Raccordo Anulare'],
+  [/\bautostrada del sole\b/i, 'Autostrada A1'],
+  [/\bvariante di valico\b/i, 'Variante di Valico'],
+];
+const ROAD_WORDS = /\b(?:superstrada|autostrada|tangenziale|raccordo|statale|provinciale|strada)\b/i;
+// parole che indicano un punto su una strada o un luogo particolare: se la ricerca fallisce si toglie
+const TAIL = /\s+(?:nord|sud|est|ovest|centro|uscita|casello|svincolo|ingresso|stazione|zona|porto|aeroporto|bivio|incrocio)$/i;
+const FRONT = /^(?:uscita|casello|svincolo|ingresso|bivio|incrocio|zona|loc\.?|località|localita|fraz\.?|frazione)\s+(?:di\s+|del\s+|della\s+|dello\s+)?/i;
+
+const ABBREVIATIONS = [
+  [/\bp\.?\s?(?:so|ss)\b\.?/gi, 'Passo'],
+  [/\bm\.?\s?te\b\.?/gi, 'Monte'],
+  [/\bc\.?\s?le\b\.?/gi, 'Colle'],
+  [/\b[Ss]\.\s?(?=[A-ZÀ-Ý][a-zà-ÿ]{2,})/g, 'San '],
+  [/\bsant\s+(?=[a-zà-ÿ])/gi, "Sant'"],
+  [/\bsan\s+(?=[aeiou])/gi, "Sant'"],
+  [/\bss\.?\s?(\d+)(\s?(?:bis|ter|quater|dir)\b)?/gi, (_, n, x = '') => `Strada statale ${n}${x}`],
+  [/\bsr\.?\s?(\d+)/gi, (_, n) => `Strada regionale ${n}`],
+  [/\bsp\.?\s?(\d+)/gi, (_, n) => `Strada provinciale ${n}`],
+];
+
+const clean = (t) => t.replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/^[,\s]+|[,\s]+$/g, '').trim();
+
 /**
  * Ricerche da provare in ordine, finché una dà risultati.
  * "Passo Gavia" → ["Passo Gavia", "Gavia" (cercando un passo)].
+ * Capisce anche parentesi ("Firenze Nord (superstrada Fi-Pi-Li)"), sigle di strade (FiPiLi, SS 71, SP45),
+ * abbreviazioni (S. Lorenzo, P.so Futa), uscite e porti ("Livorno Porto" → "Porto di Livorno", "Livorno").
  * Restituisce [{ q, kind }] dove kind è il tipo di luogo atteso (o null).
  */
 export function queryVariants(query) {
-  const q = String(query || '').replace(/\s+/g, ' ').trim();
+  const q = clean(String(query || '').replace(/[“”«»"]/g, ''));
   if (!q) return [];
-  const out = [{ q, kind: null }];
+  const out = [];
+  const add = (text, kind = null) => {
+    const t = clean(text);
+    if (t.length >= 2 && !out.some((v) => v.q.toLowerCase() === t.toLowerCase())) out.push({ q: t, kind });
+  };
   const [head, ...rest] = q.split(',');
-  const words = head.trim().split(' ');
-  const kind = GENERIC[words[0].toLowerCase()];
-  if (kind) {
-    out[0].kind = kind;
-    const core = words.slice(1).join(' ').replace(PREPOSITIONS, '').trim();
-    if (core.length >= 3) out.push({ q: [core, ...rest].join(','), kind });
+  const kind = GENERIC[head.trim().split(' ')[0].toLowerCase()] || null;
+  add(q, kind);
+
+  // 1. parentesi: "Firenze Nord (superstrada Fi-Pi-Li)" → luogo + strada
+  const paren = [...q.matchAll(/\(([^)]*)\)/g)].map((m) => m[1]);
+  let base = clean(q.replace(/\([^)]*\)/g, ' '));
+  const inside = paren.join(' ');
+
+  // 2. abbreviazioni e sigle
+  let expanded = base;
+  for (const [re, to] of ABBREVIATIONS) expanded = expanded.replace(re, to);
+  expanded = clean(expanded);
+  let road = null;
+  for (const [re, name] of ROAD_ALIASES) if (re.test(inside) || re.test(q)) road = name;
+  if (!road && inside && ROAD_WORDS.test(inside)) road = clean(inside.replace(/\b(?:superstrada|raccordo)\b/i, 'strada'));
+  // il luogo senza la sigla della strada ("Firenze Nord FiPiLi" → "Firenze Nord")
+  let withoutRoad = base;
+  for (const [re] of ROAD_ALIASES) withoutRoad = withoutRoad.replace(re, ' ');
+  withoutRoad = clean(withoutRoad);
+
+  add(base, kind);
+  add(expanded, GENERIC[expanded.split(' ')[0].toLowerCase()] || kind);
+  if (road && withoutRoad) {
+    add(`${withoutRoad}, ${road}`);
+    add(withoutRoad);
   }
-  return out;
+
+  // 3. nome senza "Passo di", "Uscita", "Nord"… e "X Porto" → "Porto di X"
+  for (const text of [expanded, withoutRoad || expanded]) {
+    const [h, ...r] = text.split(',').map((x) => x.trim());
+    const words = h.split(' ');
+    const k = GENERIC[words[0].toLowerCase()];
+    if (k) {
+      const core = words.slice(1).join(' ').replace(PREPOSITIONS, '').trim();
+      if (core.length >= 3) add([core, ...r].join(', '), k);
+    }
+    const noFront = h.replace(FRONT, '');
+    const tail = noFront.match(TAIL);
+    if (tail) {
+      const core = noFront.replace(TAIL, '');
+      const word = tail[0].trim().toLowerCase();
+      if (['porto', 'stazione', 'aeroporto'].includes(word)) add([`${word[0].toUpperCase()}${word.slice(1)} di ${core}`, ...r].join(', '));
+      add([core, ...r].join(', '));
+    } else if (noFront !== h) add([noFront, ...r].join(', '));
+  }
+  // 4. senza accenti, apostrofi e punteggiatura strana
+  add(expanded.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘`´]/g, "'").replace(/[.]/g, ' '));
+  return out.slice(0, 7);
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +159,7 @@ export function queryVariants(query) {
 
 const ROAD_TYPES = new Set([
   'motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential',
-  'service', 'living_street', 'road', 'track', 'pedestrian',
+  'service', 'living_street', 'road', 'track', 'pedestrian', 'motorway_junction',
 ]);
 
 /** Categoria interna del risultato: city, town, village, hamlet, pass, peak, water, road, admin, poi, other. */

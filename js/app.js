@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610191722';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610191722';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610191722';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610191722';
-import { CONFIG } from './config.js?v=202610191722';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610191722';
-import { mountRoadbookView } from './roadbook-view.js?v=202610191722';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610191722';
+} from './core.js?v=202610221948';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610221948';
+import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610221948';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610221948';
+import { CONFIG } from './config.js?v=202610221948';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610221948';
+import { mountRoadbookView } from './roadbook-view.js?v=202610221948';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610221948';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1019,12 +1019,15 @@ $('#btn-add').addEventListener('click', () => {
 });
 
 $('#btn-new').addEventListener('click', () => {
-  if (placed().length && !confirm('Iniziare un nuovo giro? Le tappe attuali verranno cancellate (salva prima il giro se ti serve).')) return;
+  const typed = $('#list-input').value.trim();
+  if ((placed().length || typed) && !confirm('Iniziare un nuovo giro? Le tappe attuali verranno cancellate (salva prima il giro se ti serve).')) return;
   state.stops = [];
   state.name = '';
   $('#trip-name').value = '';
+  $('#list-input').value = ''; // anche l'elenco scritto o incollato
   changed();
-  focusInput(state.stops[0]);
+  if (!$('#list-editor').hidden) $('#list-input').focus();
+  else focusInput(state.stops[0]);
 });
 
 // ---------------------------------------------------------------------------
