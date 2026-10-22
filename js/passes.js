@@ -7,7 +7,7 @@
 // "passaggi" prima e dopo il passo, obbligano il percorso a salire e scendere dal
 // versante scelto.
 
-import { haversine, pointSegmentDistance } from './core.js?v=202610221952';
+import { haversine, pointSegmentDistance, cumulativeDistances } from './core.js?v=202610221958';
 
 export const PASS = Object.freeze({
   SEARCH_RADIUS: 5000, // metri attorno al passo da chiedere a Overpass
@@ -268,4 +268,37 @@ export function passCrossing(shape, summit, cum) {
   const after = at(cum[k] + 700);
   if (cum[k] < 700 || cum[cum.length - 1] - cum[k] < 700) return 'unknown';
   return haversine(before, after) < 80 ? 'outandback' : 'crossed';
+}
+
+/**
+ * Tappe intermedie dove il percorso entra in una stradina senza uscita e torna indietro sulla stessa
+ * strada: succede quando il punto della tappa cade su una laterale e la tappa è una "sosta".
+ * Restituisce gli indici delle tappe (esclusi i punti ausiliari dei passi e quelli dei passi stessi).
+ */
+export function findSpurs(shape, stops, { window = 300, tolerance = 45 } = {}) {
+  if (!shape || shape.length < 4) return [];
+  const cum = cumulativeDistances(shape);
+  const total = cum[cum.length - 1];
+  const out = [];
+  stops.forEach((s, i) => {
+    if (i === 0 || i === stops.length - 1 || s.aux || s.pass || s.type === 'through') return;
+    let k = -1;
+    let best = Infinity;
+    shape.forEach((p, j) => {
+      const d = haversine(p, [s.lat, s.lon]);
+      if (d < best) {
+        best = d;
+        k = j;
+      }
+    });
+    if (k < 0 || best > 400 || cum[k] < window || total - cum[k] < window) return;
+    const at = (target) => {
+      let j = k;
+      if (target < cum[k]) while (j > 0 && cum[j] > target) j--;
+      else while (j < shape.length - 1 && cum[j] < target) j++;
+      return shape[j];
+    };
+    if (haversine(at(cum[k] - window), at(cum[k] + window)) < tolerance) out.push(i);
+  });
+  return out;
 }

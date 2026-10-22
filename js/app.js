@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610221952';
-import { snapsToRoad, splitPlaces } from './places.js?v=202610221952';
-import { expandStops, nearestSide, oppositeSide, passCrossing, compassLabel } from './passes.js?v=202610221952';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610221952';
-import { CONFIG } from './config.js?v=202610221952';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610221952';
-import { mountRoadbookView } from './roadbook-view.js?v=202610221952';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610221952';
+} from './core.js?v=202610221958';
+import { snapsToRoad, splitPlaces } from './places.js?v=202610221958';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610221958';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610221958';
+import { CONFIG } from './config.js?v=202610221958';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610221958';
+import { mountRoadbookView } from './roadbook-view.js?v=202610221958';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610221958';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -565,24 +565,43 @@ function renderMeta(meta, s, i, role) {
     }
     return;
   }
-  if (s.kind) span('kind', s.kind);
-  if (s.context) span('ctx', s.context);
-  if (role === 'break' || role === 'through') {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = `chip ${role}`;
-    chip.textContent = role === 'through' ? 'Passaggio' : 'Sosta';
-    chip.title =
-      role === 'through'
-        ? 'Il percorso ci passa senza fermarsi né fare inversioni. Tocca per renderla una sosta.'
-        : 'Il percorso si ferma qui e ne riparte. Tocca per renderla un semplice passaggio.';
-    chip.addEventListener('click', () => {
-      s.type = s.type === 'through' ? 'break' : 'through';
-      changed();
-    });
-    meta.appendChild(chip);
+  if (s.context) span('ctx', s.kind && s.kind !== 'Città' && s.kind !== 'Paese' && s.kind !== 'Località' ? `${s.kind} · ${s.context}` : s.context);
+  else if (s.kind) span('kind', s.kind);
+  const movable = role === 'break' || role === 'through';
+  // di regola la riga resta pulita: sosta/passaggio e modalità del passo si aprono con «Opzioni»,
+  // ma ciò che non è il valore normale (un passaggio, un passo scelto a mano, un'inversione) si vede sempre
+  const unusual = role === 'through' || (s.pass && (s.pass.mode !== 'auto' || s.crossing === 'outandback'));
+  if (movable) {
+    const open = !!s.optOpen || unusual;
+    if (!unusual) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'link-btn';
+      more.textContent = s.optOpen ? 'Meno' : 'Opzioni';
+      more.setAttribute('aria-expanded', String(!!s.optOpen));
+      more.addEventListener('click', () => {
+        s.optOpen = !s.optOpen;
+        renderStops();
+      });
+      meta.appendChild(more);
+    }
+    if (open) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `chip ${role}`;
+      chip.textContent = role === 'through' ? 'Passaggio' : 'Sosta';
+      chip.title =
+        role === 'through'
+          ? 'Il percorso ci passa senza fermarsi né fare inversioni. Tocca per renderla una sosta.'
+          : 'Il percorso si ferma qui e ne riparte. Tocca per renderla un semplice passaggio.';
+      chip.addEventListener('click', () => {
+        s.type = s.type === 'through' ? 'break' : 'through';
+        changed();
+      });
+      meta.appendChild(chip);
+      if (s.pass) renderPassMeta(meta, s);
+    }
   }
-  if (s.pass && (role === 'break' || role === 'through')) renderPassMeta(meta, s);
   if (s.candidates.length > 1) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -1226,7 +1245,25 @@ async function recalc() {
   try {
     res = await fetchRoute(stops, loop, state.options, ctrl.signal);
     if (seq !== recalcSeq) return;
-    const parsed = parseTrip(res.trip);
+    let parsed = parseTrip(res.trip);
+    // una sosta caduta in una stradina senza uscita: il percorso entra e torna indietro. Si riprova come passaggio.
+    const spurs = res.scenic ? [] : findSpurs(parsed.shape, stops);
+    if (spurs.length) {
+      const smooth = stops.map((s, i) => (spurs.includes(i) ? { ...s, type: 'through' } : s));
+      try {
+        const again = await fetchRoute(smooth, loop, state.options, ctrl.signal);
+        if (seq !== recalcSeq) return;
+        const p2 = parseTrip(again.trip);
+        if (p2.summary.length <= parsed.summary.length * 1.05) {
+          const names = spurs.map((i) => stops[i].name).filter(Boolean).join(', ');
+          res = { ...again, warning: [again.warning, `Evitata un'inversione a ${names}: il percorso ci passa senza fermarsi.`].filter(Boolean).join(' ') };
+          parsed = p2;
+          stops.splice(0, stops.length, ...smooth);
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') throw e; // il percorso è già buono: se il secondo tentativo fallisce si tiene il primo
+      }
+    }
     route = {
       parsed,
       costing: res.costing,

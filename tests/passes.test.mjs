@@ -9,6 +9,7 @@ import {
   oppositeSide,
   expandStops,
   passCrossing,
+  findSpurs,
 } from '../js/passes.js';
 import { haversine, cumulativeDistances, routeLocations, distanceToLine } from '../js/core.js';
 import { straight } from './fixture.mjs';
@@ -120,4 +121,23 @@ test('passCrossing: attraversato oppure andata e ritorno', () => {
   assert.equal(passCrossing(across, top, cumulativeDistances(across)), 'crossed');
   assert.equal(passCrossing(back, top, cumulativeDistances(back)), 'outandback');
   assert.equal(passCrossing(across, [40, 10], cumulativeDistances(across)), 'unknown');
+});
+
+test('findSpurs: una sosta in una stradina senza uscita è un\'inversione, una sulla strada no', () => {
+  // strada dritta verso nord (0,001° ≈ 111 m); a 1 km c'è una laterale di 600 m verso est, percorsa all'andata e al ritorno
+  const road = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => [43 + (from + i) * 0.001, 11]);
+  const spur = Array.from({ length: 7 }, (_, i) => [43.009, 11 + i * 0.001]);
+  const shape = [...road(0, 9), ...spur, ...[...spur].reverse().slice(1), ...road(10, 20)];
+  const stops = [
+    { lat: 43, lon: 11, type: 'break' },
+    { lat: 43.009, lon: 11.006, type: 'break', name: 'Fondo' }, // in fondo alla laterale
+    { lat: 43.02, lon: 11, type: 'break' },
+  ];
+  assert.deepEqual(findSpurs(shape, stops), [1]);
+  assert.deepEqual(findSpurs(shape, [stops[0], { ...stops[1], type: 'through' }, stops[2]]), []);
+  assert.deepEqual(findSpurs(shape, [stops[0], { ...stops[1], aux: true }, stops[2]]), []);
+  assert.deepEqual(findSpurs(shape, [stops[0], { ...stops[1], pass: { mode: 'auto' } }, stops[2]]), []);
+  // sosta sulla strada principale: nessuna inversione
+  assert.deepEqual(findSpurs(road(0, 20), [stops[0], { lat: 43.01, lon: 11, type: 'break' }, stops[2]]), []);
+  assert.deepEqual(findSpurs([], stops), []);
 });

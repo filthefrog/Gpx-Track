@@ -33,11 +33,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/roadbook.css?v=202610221952">
-  <link rel="stylesheet" href="css/style.css?v=202610221952">
+  <link rel="stylesheet" href="css/roadbook.css?v=202610221958">
+  <link rel="stylesheet" href="css/style.css?v=202610221958">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610221952"></script>
+  <script type="module" src="js/app.js?v=202610221958"></script>
 </head>
 <body>
   <header class="site-top">
@@ -103,8 +103,7 @@
             <input type="file" id="gpx-file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
             Apri un file GPX</label>
-          <p class="hint">Va bene anche «Sirolo → Stelvio → Gavia» o un elenco numerato. Le tappe già trovate
-            restano come sono (comprese le scelte sui passi); vengono cercate solo quelle nuove o cambiate.</p>
+          <p class="hint">Vanno bene anche frecce («Sirolo → Stelvio») o un elenco numerato.</p>
         </div>
         <div id="rows-view">
         <ol id="stops" class="stops"></ol>
@@ -126,8 +125,7 @@
           <input type="checkbox" id="opt-loop">
           <span>Anello: torna alla partenza</span>
         </label>
-        <p class="hint">Scrivi una località e premi <b>Invio</b>. Accetta anche coordinate e link di Google Maps,
-          oppure tocca la mappa. Per scrivere tutte le tappe insieme usa <b>Elenco</b>.</p>
+        <p class="hint">Scrivi una località e premi <b>Invio</b>, oppure tocca la mappa. Coordinate e link di Google Maps vanno bene.</p>
         </div>
       </section>
 
@@ -210,35 +208,25 @@
         </div>
       </details>
 
-      <details class="card fold" id="rally-card">
-        <summary>
-          <span class="fold-title">Roadbook da rally</span>
-          <span class="fold-sub">Tulipani, distanze e CAP, da stampare o per l'app</span>
-        </summary>
-        <div class="fold-body">
-          <p class="hint">Caselle come nei roadbook FIA/FIM: distanza totale e parziale al centesimo di km, tulipano, CAP
-            e note. Da stampare su strisce larghe 148,5 mm per il porta-roadbook o su fogli A4, oppure come GPX
-            OpenRally per le app e i dispositivi da roadbook.</p>
-          <div class="btn-row">
-            <button type="button" class="btn" id="btn-rb-open" disabled>Roadbook del giro</button>
-            <label class="btn secondary file-btn">Converti un GPX
-              <input type="file" id="rb-file" accept=".gpx,application/gpx+xml,application/xml,text/xml"></label>
-          </div>
-          <p class="hint small">Il GPX può essere turn by turn (Traccemoto, OsmAnd) oppure una semplice traccia: in quel
-            caso le svolte si ricavano dalla forma della strada e conviene ricontrollare le caselle.
-            <a href="guide/roadbook-rally/">Come si legge un roadbook</a></p>
-        </div>
-      </details>
-
       <details class="card fold" id="export-card">
         <summary>
           <span class="fold-title">Altri formati</span>
-          <span class="fold-sub">Per navigatori Garmin e BMW</span>
+          <span class="fold-sub">Roadbook, traccia e rotta (Garmin, BMW)</span>
         </summary>
         <div class="fold-body export">
           <div class="export-item">
+            <strong>Roadbook da rally</strong>
+            <p class="hint">Tulipani, distanze e CAP: da stampare (strisce 148,5 mm o A4) o come GPX OpenRally.
+              <a href="guide/roadbook-rally/">Come si legge</a></p>
+            <div class="btn-row">
+              <button type="button" class="btn secondary" id="btn-rb-open" disabled>Roadbook del giro</button>
+              <label class="btn secondary file-btn">Da un GPX
+                <input type="file" id="rb-file" accept=".gpx,application/gpx+xml,application/xml,text/xml"></label>
+            </div>
+          </div>
+          <div class="export-item">
             <strong>Traccia</strong>
-            <p class="hint">La linea del percorso, le tappe e un punto su ogni svolta. Il navigatore segue esattamente queste strade.</p>
+            <p class="hint">La linea esatta del percorso: il navigatore segue queste strade.</p>
             <div class="btn-row">
               <button type="button" class="btn secondary" id="btn-track-dl" disabled>Scarica</button>
               <button type="button" class="btn secondary" id="btn-track-share" disabled>Invia a…</button>
@@ -246,7 +234,7 @@
           </div>
           <div class="export-item">
             <strong>Rotta</strong>
-            <p class="hint">Tappe e un punto subito dopo ogni svolta: il navigatore ricalcola le indicazioni restando su queste strade. <span id="route-count"></span></p>
+            <p class="hint">Le tappe e un punto dopo ogni svolta: il navigatore ricalcola restando su queste strade. <span id="route-count"></span></p>
             <div class="btn-row">
               <button type="button" class="btn secondary" id="btn-route-dl" disabled>Scarica</button>
               <button type="button" class="btn secondary" id="btn-route-share" disabled>Invia a…</button>
@@ -268,37 +256,10 @@
           <p class="hint">I giri salvati restano solo su questo dispositivo. Il link condiviso contiene tappe e
             coordinate del giro: chi lo riceve le vede.</p>
           <ul id="saved" class="saved"></ul>
+          <button type="button" class="btn ghost small danger" id="btn-wipe">Cancella tutti i miei dati</button>
+          <p class="hint small">Niente account né cookie: tutto resta su questo dispositivo. <a href="privacy/">Privacy</a></p>
         </div>
       </details>
-
-      <details class="card fold" id="privacy-card">
-        <summary>
-          <span class="fold-title">Privacy e dati</span>
-          <span class="fold-sub">Niente account, niente tracciamento</span>
-        </summary>
-        <div class="fold-body privacy">
-          <p>Traccemoto non ha un server suo, non usa cookie, statistiche o pubblicità e non sa chi sei.
-            Giri salvati, giro in corso e preferenze restano <b>solo in questo dispositivo</b>.</p>
-          <p>Per funzionare l'app chiede dati a servizi pubblici di OpenStreetMap, che vedono il tuo indirizzo IP
-            e ciò che serve alla richiesta:</p>
-          <ul>
-            <li><b>Nominatim</b> (ricerca): il testo che cerchi e le coordinate dei punti toccati sulla mappa.</li>
-            <li><b>Valhalla</b> (FOSSGIS, percorsi): le coordinate delle tappe.</li>
-            <li><b>Overpass</b> (passi): la posizione del passo, solo se scegli «Completo» o «Andata e ritorno».</li>
-            <li><b>Tile della mappa</b> (CARTO, OpenStreetMap, OpenTopoMap): le zone di mappa che guardi.</li>
-          </ul>
-          <p>La tua posizione GPS si usa solo quando tocchi «La mia posizione» e non viene salvata altrove.
-            L'indirizzo della pagina non contiene il giro, così non finisce nella cronologia del browser:
-            il link si crea solo con «Condividi link».</p>
-          <p><a href="privacy/">Informativa completa su privacy e cookie</a></p>
-          <button type="button" class="btn secondary wide danger" id="btn-wipe">Cancella tutti i miei dati</button>
-        </div>
-      </details>
-
-      <a class="card plus-card" href="plus/">
-        <strong>Traccemoto Plus è in arrivo</strong>
-        <span>Roadbook pro, viaggi in più giorni, autonomia, meteo e giri sincronizzati. Il gratuito resta gratuito.</span>
-      </a>
 
       <section class="card donate-card" id="donate-card" hidden>
         <div>
@@ -311,6 +272,7 @@
       <footer class="foot">
         <nav class="foot-links" aria-label="Altre pagine">
           <a href="guide/">Guide</a>
+          <a href="plus/">Plus</a>
           <a href="sostieni/">Sostieni</a>
           <a href="info/">Chi siamo</a>
           <a href="privacy/">Privacy</a>
