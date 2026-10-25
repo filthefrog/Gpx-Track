@@ -763,3 +763,55 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
 
 .order-tip { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
 .order-tip .link-btn { font-weight: 700; }
+
+/* ---------- Ritocchi di stile (2026): più aria, angoli morbidi, ombre leggere ---------- */
+:root { --radius: 18px; --shadow: 0 1px 2px rgb(22 24 29 / 4%), 0 8px 24px rgb(22 24 29 / 6%); }
+.panel { background: #f2f3f5; }
+.card { border: 0; box-shadow: var(--shadow); padding: 16px; margin: 10px 0; }
+.card h2 { font-size: 18px; letter-spacing: -0.01em; }
+.btn { border-radius: 14px; }
+.tabs { border-radius: 14px; padding: 4px; background: #eceef1; }
+.tab { border-radius: 11px; }
+.tab[aria-selected="true"] { box-shadow: 0 1px 3px rgb(22 24 29 / 14%); }
+.stop-input { border-radius: 14px; }
+.stop-meta { color: var(--muted); }
+
+/* barra della scala: piccola e discreta, non un riquadro con testo grande */
+.leaflet-control-scale { margin-left: 10px !important; margin-bottom: 8px !important; }
+.leaflet-control-scale-line {
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 1px 7px;
+  color: var(--text);
+  background: rgb(255 255 255 / 85%);
+  border: 0;
+  border-bottom: 2px solid var(--muted);
+  border-radius: 6px;
+  text-shadow: none;
+}
+
+/* sezioni dentro la scheda: freccia vera e titolo sobrio */
+.inner-fold { border-top: 1px solid var(--line); margin-top: 10px; }
+.inner-fold > summary { display: flex; align-items: center; gap: 10px; padding: 14px 0 6px; color: var(--text); font-weight: 700; }
+.inner-fold > summary::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 3px 0 2px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 0.2s var(--ease);
+}
+.inner-fold[open] > summary::before { transform: rotate(45deg); }
+
+/* suggerimento di installazione: leggero, non un blocco nero */
+.install-hint { background: #fff; color: var(--text); box-shadow: var(--shadow); border-radius: 14px; padding: 10px 12px; }
+
+/* barra in basso: vetro sfocato */
+.dock { background: rgb(255 255 255 / 97%); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); }
+.dock .btn { border-radius: 14px; }
+.order-tip { background: var(--accent-soft); color: var(--text); border-radius: 12px; padding: 8px 12px; }
+
+.sheet-handle { background: linear-gradient(#f2f3f5 70%, transparent); }

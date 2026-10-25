@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610251333';
-import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad, shorterOrder } from './places.js?v=202610251333';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251333';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251333';
-import { CONFIG } from './config.js?v=202610251333';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610251333';
-import { mountRoadbookView } from './roadbook-view.js?v=202610251333';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251333';
+} from './core.js?v=202610251517';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad, shorterOrder } from './places.js?v=202610251517';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251517';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251517';
+import { CONFIG } from './config.js?v=202610251517';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610251517';
+import { mountRoadbookView } from './roadbook-view.js?v=202610251517';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251517';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1553,11 +1553,11 @@ function setDock(mode) {
     $('#dock-km').textContent = '…';
     $('#dock-time').textContent = 'Calcolo del percorso';
   } else if (mode === 'error') {
-    $('#dock-km').textContent = '–';
+    $('#dock-km').textContent = '0 km';
     $('#dock-time').textContent = 'Percorso non calcolato';
   } else {
     const missing = 2 - placed().length;
-    $('#dock-km').textContent = '–';
+    $('#dock-km').textContent = '0 km';
     $('#dock-time').textContent = missing > 0 ? (missing === 2 ? 'Scrivi partenza e arrivo' : 'Manca ancora una tappa') : '';
   }
 }
