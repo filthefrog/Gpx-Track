@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610251318';
-import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610251318';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251318';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251318';
-import { CONFIG } from './config.js?v=202610251318';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610251318';
-import { mountRoadbookView } from './roadbook-view.js?v=202610251318';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251318';
+} from './core.js?v=202610251321';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610251321';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251321';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251321';
+import { CONFIG } from './config.js?v=202610251321';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610251321';
+import { mountRoadbookView } from './roadbook-view.js?v=202610251321';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251321';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1907,6 +1907,7 @@ let mapsPlatform = (() => {
 let fast = null; // { key, shape } oppure { key, failed: true }: strada veloce per il confronto
 let fastAbort = null;
 let mapsKey = '';
+let mapsLegs = [];
 const openedLegs = new Set();
 
 for (const input of document.querySelectorAll('input[name="maps-platform"]')) {
@@ -1978,10 +1979,6 @@ function renderMapsLinks() {
   const list = $('#maps-legs');
   const fresh = route && routeKey === currentKey();
   const failed = !route && $('#route-status').classList.contains('error');
-  if (!card.open) {
-    $('#maps-summary').textContent = 'Il giro diviso in tratte, un link per tratta';
-    return;
-  }
   const opts = {
     avoidHighways: state.options.style === 'scenic' || state.options.highways === 0,
     avoidTolls: !!state.options.avoidTolls,
@@ -2031,6 +2028,7 @@ function renderMapsLinks() {
     kind = 'busy';
   }
   const legs = points ? buildLinks(points, mapsPlatform, opts) : [];
+  mapsLegs = legs; // il pulsante «Mappe» apre subito la prima tratta, senza aspettare
   const key = JSON.stringify([legs.map((l) => l.url), note]);
   if (key === mapsKey) return;
   mapsKey = key;
@@ -2067,6 +2065,21 @@ function renderMapsLinks() {
 // la barra in basso porta alla scheda dei link (e la apre)
 $('#btn-maps').addEventListener('click', () => {
   if (!exportReady()) return;
+  const [first] = mapsLegs;
+  // un tocco: si apre subito il giro nell'app di mappe scelta (la prima tratta, se il giro ne ha più di una)
+  if (first) {
+    window.open(first.url, '_blank', 'noopener');
+    openedLegs.add(first.url);
+    renderMapsLinks();
+    if (mapsLegs.length > 1) {
+      toast(`Aperta la tratta 1 di ${mapsLegs.length}: le altre sono nell'elenco.`);
+      const card = $('#maps-card');
+      card.open = true;
+      setSheet(false);
+      card.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+    return;
+  }
   setSheet(false);
   const card = $('#maps-card');
   card.open = true;
