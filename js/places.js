@@ -1,7 +1,7 @@
 // Funzioni pure per trovare e descrivere i luoghi (risultati Nominatim).
 // Nessun accesso a rete o DOM: testate in tests/places.test.mjs.
 
-import { haversine } from './core.js?v=202610251517';
+import { haversine } from './core.js?v=202610251840';
 
 // ---------------------------------------------------------------------------
 // Coordinate scritte a mano o incollate da una mappa
@@ -541,4 +541,38 @@ export function shorterOrder(stops, loop = false) {
   const saved = before - after;
   if (saved < 25000 || saved < before * 0.15) return null;
   return { order: best, saved, before };
+}
+
+// ---------------------------------------------------------------------------
+// Suggerimenti mentre si scrive (Photon): tollerano lettere sbagliate o mancanti
+// ---------------------------------------------------------------------------
+
+const PHOTON_CATEGORY = {
+  'place:city': 'city', 'place:town': 'town', 'place:village': 'village', 'place:hamlet': 'hamlet',
+  'place:suburb': 'hamlet', 'place:neighbourhood': 'hamlet', 'place:locality': 'hamlet', 'place:isolated_dwelling': 'hamlet',
+  'natural:saddle': 'pass', 'mountain_pass:yes': 'pass', 'natural:peak': 'peak', 'natural:volcano': 'peak',
+  'natural:water': 'water', 'boundary:administrative': 'admin',
+};
+
+/**
+ * Risultati di Photon (GeoJSON) nello stesso formato di rankPlaces: [{ lat, lon, name, context, kind, category, score, fuzzy }].
+ * Vengono prima quelli che non allungano il giro rispetto alle tappe vicine.
+ */
+export function photonCandidates(geojson, { near = null, next = null } = {}) {
+  const out = [];
+  for (const f of (geojson && geojson.features) || []) {
+    const p = f.properties || {};
+    const [lon, lat] = (f.geometry && f.geometry.coordinates) || [];
+    if (!p.name || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const category = PHOTON_CATEGORY[`${p.osm_key}:${p.osm_value}`] || (p.osm_key === 'highway' ? 'road' : p.osm_key === 'place' ? 'hamlet' : 'poi');
+    const where = [p.city && p.city !== p.name ? p.city : p.county, p.state].filter(Boolean);
+    let score = (CATEGORY_BONUS[category] ?? 0) - out.length * 0.01;
+    if (near && next) score -= Math.min(0.9, (haversine(near, [lat, lon]) + haversine([lat, lon], next) - haversine(near, next)) / 1000 / 400);
+    else if (near) score -= Math.min(0.5, haversine(near, [lat, lon]) / 1000 / 1200);
+    out.push({ lat, lon, name: p.name, context: where.join(', '), kind: CATEGORY_LABEL[category], category, score, fuzzy: true });
+  }
+  const seen = [];
+  return out
+    .sort((a, b) => b.score - a.score)
+    .filter((c) => !seen.some((q) => q.name === c.name && haversine([q.lat, q.lon], [c.lat, c.lon]) < 1000) && seen.push(c));
 }

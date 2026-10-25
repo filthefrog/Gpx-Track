@@ -16,6 +16,7 @@ import {
   chooseRoadPoints,
   farOffKm,
   shorterOrder,
+  photonCandidates,
 } from '../js/places.js';
 import { routeLocations, buildValhallaRequest, isSnapError } from '../js/core.js';
 
@@ -284,4 +285,25 @@ test('shorterOrder: propone un ordine più corto solo se il risparmio è grande'
   // anello: la partenza resta ferma
   const loop = shorterOrder([p(43, 11), p(43, 13), p(43.05, 11.5), p(43.1, 12.5), p(43.1, 12.9)], true);
   assert.ok(!loop || loop.order[0] === 0);
+});
+
+test('photonCandidates: risultati di Photon ordinati per vicinanza alle tappe, senza doppioni', () => {
+  const f = (name, lon, lat, key, value, extra = {}) => ({ geometry: { coordinates: [lon, lat] }, properties: { name, osm_key: key, osm_value: value, state: 'Toscana', ...extra } });
+  const geo = {
+    features: [
+      f('Firenzuola', 9.5, 45.4, 'place', 'village', { county: 'Lodi' }), // omonimo lontano
+      f('Firenzuola', 11.38, 44.12, 'place', 'town', { county: 'Firenze' }),
+      f('Firenzuola', 11.381, 44.1205, 'place', 'hamlet'), // doppione a meno di 1 km
+      f('Passo della Futa', 11.3, 44.1, 'natural', 'saddle'),
+      { geometry: null, properties: { name: 'Rotto' } },
+      f('', 11, 44, 'place', 'town'),
+    ],
+  };
+  const out = photonCandidates(geo, { near: [43.77, 11.25], next: [44.5, 11.3] });
+  assert.equal(out[0].name === 'Firenzuola' || out[0].name === 'Passo della Futa', true);
+  assert.deepEqual(out.map((c) => c.name).filter((n) => n === 'Firenzuola').length, 2); // lontano e vicino restano, il doppione no
+  assert.equal(out.findIndex((c) => c.lat === 44.12) < out.findIndex((c) => c.lat === 45.4), true);
+  assert.equal(out.find((c) => c.name === 'Passo della Futa').category, 'pass');
+  assert.equal(out.every((c) => c.fuzzy), true);
+  assert.deepEqual(photonCandidates(null), []);
 });

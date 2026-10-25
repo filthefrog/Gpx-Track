@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { DEFAULT_OPTIONS, haversine, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, isLocationsError, locationLimit, nextChunkEnd, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610251517';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext, parseRoad, roadQuery, chooseRoadPoints } from './places.js?v=202610251517';
-import { overpassQuery, passSides } from './passes.js?v=202610251517';
+import { DEFAULT_OPTIONS, haversine, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, isLocationsError, locationLimit, nextChunkEnd, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610251840';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext, parseRoad, roadQuery, chooseRoadPoints, photonCandidates } from './places.js?v=202610251840';
+import { overpassQuery, passSides } from './passes.js?v=202610251840';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const HEIGHT_URL = 'https://valhalla1.openstreetmap.de/height';
@@ -18,6 +18,7 @@ function transient(err) {
 }
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
 export const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+export const PHOTON_URL = 'https://photon.komoot.io/api/';
 
 /** Errore con i dettagli di Valhalla (error_code, status HTTP, problema di rete). */
 export class RouteError extends Error {
@@ -342,7 +343,28 @@ export async function searchPlaces(query, { near = null, next = null } = {}) {
     const list = await nominatim('search', { q: v.q, limit: '10', extratags: '1', ...(box ? { viewbox: box } : {}) });
     if (list.length) return rankPlaces(list, { near, next, kind: v.kind }).slice(0, 6);
   }
-  return [];
+  // niente: forse una lettera sbagliata o mancante, Photon la capisce
+  return suggestPlaces(query, { near, next }).catch(() => []);
+}
+
+/**
+ * Luoghi che somigliano al testo (anche con lettere sbagliate o mancanti), per i suggerimenti mentre si scrive.
+ * Photon è fatto per l'autocompletamento (Nominatim lo vieta). `near` orienta i risultati verso le altre tappe.
+ */
+export async function suggestPlaces(query, { near = null, next = null, signal } = {}) {
+  const q = String(query || '').trim();
+  if (q.length < 3) return [];
+  const params = new URLSearchParams({ q, limit: '8' });
+  const bias = near || next;
+  if (bias) {
+    params.set('lat', String(bias[0]));
+    params.set('lon', String(bias[1]));
+  }
+  let res = await fetch(`${PHOTON_URL}?${params}&lang=it`, { signal });
+  // alcune installazioni non conoscono la lingua: si riprova senza
+  if (res.status === 400) res = await fetch(`${PHOTON_URL}?${params}`, { signal });
+  if (!res.ok) throw new Error(`Suggerimenti non disponibili (HTTP ${res.status})`);
+  return photonCandidates(await res.json(), { near, next }).slice(0, 6);
 }
 
 /** Rettangolo (lon1,lat1,lon2,lat2) attorno alle tappe vicine, per orientare la ricerca di Nominatim. */

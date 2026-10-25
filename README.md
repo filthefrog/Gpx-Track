@@ -291,7 +291,7 @@ Consigli:
   disponibilità. Ha limiti di uso (poche richieste al secondo, numero di tappe e lunghezza massima del percorso):
   per giri molto lunghi può rispondere con un errore, in quel caso dividi il giro. Se il profilo `motorcycle`
   non fosse disponibile l'app usa `auto` e lo segnala.
-- **Nominatim**: al massimo 1 richiesta al secondo e niente autocompletamento (per questo la ricerca parte solo con invio).
+- **Nominatim**: al massimo 1 richiesta al secondo e niente autocompletamento (la ricerca parte con invio). I suggerimenti mentre si scrive e la correzione di lettere sbagliate usano **Photon** (photon.komoot.io), pensato per l'autocompletamento.
   Un uso intenso può essere bloccato temporaneamente.
 - **Giri lunghi**: il profilo moto del server ha un limite di distanza in linea d'aria per richiesta (di solito 500 km).
   Se il giro lo supera, l'app lo calcola automaticamente a pezzi e li unisce; se una singola tratta da sola supera

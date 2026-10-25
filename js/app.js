@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610251517';
-import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad, shorterOrder } from './places.js?v=202610251517';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251517';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251517';
-import { CONFIG } from './config.js?v=202610251517';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610251517';
-import { mountRoadbookView } from './roadbook-view.js?v=202610251517';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251517';
+} from './core.js?v=202610251840';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad, parseCoordinates, shorterOrder } from './places.js?v=202610251840';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251840';
+import { fetchRoute, searchPlaces, suggestPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251840';
+import { CONFIG } from './config.js?v=202610251840';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610251840';
+import { mountRoadbookView } from './roadbook-view.js?v=202610251840';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251840';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -486,8 +486,26 @@ function stopRow(s, i) {
 
   input.addEventListener('input', () => {
     s.draft = input.value;
+    scheduleSuggest(s, input.value);
   });
   input.addEventListener('keydown', (e) => {
+    const n = s.sugg ? s.sugg.length : 0;
+    if (n && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      s.suggIdx = ((s.suggIdx ?? -1) + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+      refreshSuggestions(s);
+      return;
+    }
+    if (n && e.key === 'Escape') {
+      s.sugg = null;
+      refreshSuggestions(s);
+      return;
+    }
+    if (n && e.key === 'Enter' && s.suggIdx != null && s.suggIdx >= 0) {
+      e.preventDefault();
+      pickSuggestion(s, s.sugg[s.suggIdx]);
+      return;
+    }
     if (e.key !== 'Enter') return;
     e.preventDefault();
     // Invio passa alla riga dopo; in fondo all'elenco ne apre una nuova.
@@ -510,6 +528,10 @@ function stopRow(s, i) {
   input.addEventListener('change', () => commit(s, input.value));
   input.addEventListener('blur', () => {
     setTimeout(() => {
+      if (s.sugg && !(document.activeElement && document.activeElement.closest(`[data-id="${s.id}"]`))) {
+        s.sugg = null;
+        refreshSuggestions(s);
+      }
       const active = document.activeElement && document.activeElement.closest('.stop');
       if (s.status === 'empty' && !s.draft && state.stops.length > 2 && state.stops.includes(s) && (!active || Number(active.dataset.id) !== s.id)) {
         state.stops.splice(state.stops.indexOf(s), 1);
@@ -528,7 +550,87 @@ function stopRow(s, i) {
   li.querySelector('.del').addEventListener('click', () => removeStop(s));
   enableDrag(li.querySelector('.handle'), li);
   renderMeta(li.querySelector('.stop-meta'), s, i, role);
+  if (s.sugg && s.sugg.length && s.draft) li.querySelector('.stop-body').insertBefore(suggestionList(s), li.querySelector('.stop-meta'));
   return li;
+}
+
+// ---------------------------------------------------------------------------
+// Suggerimenti mentre si scrive (tollerano lettere sbagliate o mancanti)
+// ---------------------------------------------------------------------------
+
+let suggestTimer = null;
+let suggestAbort = null;
+let suggestSeq = 0;
+
+function scheduleSuggest(s, text) {
+  clearTimeout(suggestTimer);
+  if (suggestAbort) suggestAbort.abort();
+  const q = String(text || '').trim();
+  // coordinate, link, elenchi e strade (SS 123) non hanno bisogno di suggerimenti
+  if (q.length < 3 || parseCoordinates(q) || splitPlaces(q).length > 1 || parseRoad(q) || /^https?:/i.test(q)) {
+    if (s.sugg) {
+      s.sugg = null;
+      refreshSuggestions(s);
+    }
+    return;
+  }
+  const seq = ++suggestSeq;
+  suggestTimer = setTimeout(async () => {
+    const ctrl = new AbortController();
+    suggestAbort = ctrl;
+    try {
+      const { near, next } = neighbourPoints(s);
+      const list = await suggestPlaces(q, { near, next, signal: ctrl.signal });
+      if (seq !== suggestSeq || !state.stops.includes(s) || s.draft !== text) return;
+      s.sugg = list;
+      s.suggIdx = -1;
+      refreshSuggestions(s);
+    } catch {
+      // senza suggerimenti si scrive e si preme Invio come sempre
+    }
+  }, 320);
+}
+
+/** Ridisegna solo l'elenco dei suggerimenti di una riga: il campo di testo non si tocca mentre si scrive. */
+function refreshSuggestions(s) {
+  const body = document.querySelector(`[data-id="${s.id}"] .stop-body`);
+  if (!body) return;
+  const old = body.querySelector('.sugg');
+  if (old) old.remove();
+  if (s.sugg && s.sugg.length && s.draft) body.insertBefore(suggestionList(s), body.querySelector('.stop-meta'));
+}
+
+function suggestionList(s) {
+  const ul = document.createElement('ul');
+  ul.className = 'sugg';
+  ul.setAttribute('role', 'listbox');
+  s.sugg.forEach((c, k) => {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', String(k === s.suggIdx));
+    if (k === s.suggIdx) li.className = 'active';
+    li.innerHTML = '<span class="a-name"></span><span class="a-ctx"></span>';
+    li.querySelector('.a-name').textContent = c.name;
+    li.querySelector('.a-ctx').textContent = [c.kind, c.context].filter(Boolean).join(' · ');
+    // mousedown non toglie il fuoco al campo; la scelta avviene al click (sul tocco un pointerdown farebbe cliccare l'elemento sotto)
+    li.addEventListener('mousedown', (e) => e.preventDefault());
+    li.addEventListener('click', () => pickSuggestion(s, c));
+    ul.appendChild(li);
+  });
+  return ul;
+}
+
+function pickSuggestion(s, c) {
+  const list = s.sugg || [c];
+  applyCandidate(s, c);
+  Object.assign(s, { manual: true, candidates: list, showAlts: false, draft: null, sugg: null, suggIdx: -1, corrected: null, skipCommit: true });
+  setTimeout(() => {
+    s.skipCommit = false;
+  }, 400);
+  changed();
+  if (placed().length === 1) map.setView([c.lat, c.lon], 10);
+  const next = state.stops[state.stops.indexOf(s) + 1];
+  if (next && next.status === 'empty') focusInput(next);
 }
 
 function focusInput(stop) {
@@ -567,6 +669,7 @@ function renderMeta(meta, s, i, role) {
   }
   if (s.context) span('ctx', s.kind && s.kind !== 'Città' && s.kind !== 'Paese' && s.kind !== 'Località' ? `${s.kind} · ${s.context}` : s.context);
   else if (s.kind) span('kind', s.kind);
+  if (s.corrected) span('warn-text', `Hai scritto «${s.corrected}»: ho capito «${s.name}».`);
   const far = farOffKm(state.stops, i);
   if (far) span('warn-text', `Sembra lontana dal giro (+${far} km): è il posto giusto?`);
   const movable = role === 'break' || role === 'through';
@@ -855,6 +958,11 @@ function nearPoint(stop) {
 }
 
 async function commit(stop, text) {
+  // il campo scelto da un suggerimento viene ridisegnato e invia un «change» con il testo vecchio: va ignorato
+  if (stop.skipCommit) {
+    stop.skipCommit = false;
+    return;
+  }
   stop.draft = null;
   const q = String(text || '').trim();
   if (stop.status === 'ok' && q === stop.name) return; // niente di cambiato
@@ -870,7 +978,7 @@ async function commit(stop, text) {
 }
 
 async function resolveStop(stop, q) {
-  Object.assign(stop, { manual: false, query: q, status: 'searching', message: '', candidates: [], showAlts: false, lat: null, lon: null });
+  Object.assign(stop, { manual: false, corrected: null, sugg: null, query: q, status: 'searching', message: '', candidates: [], showAlts: false, lat: null, lon: null });
   changed();
   try {
     const found = await searchPlaces(q, neighbourPoints(stop));
@@ -880,6 +988,8 @@ async function resolveStop(stop, q) {
     } else {
       applyCandidate(stop, found[0]);
       stop.candidates = found;
+      // trovato con la correzione di lettere sbagliate: lo si dice, con le alternative a portata di tocco
+      stop.corrected = found[0].fuzzy ? q : null;
     }
   } catch (err) {
     if (!state.stops.includes(stop)) return;
