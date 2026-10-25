@@ -11,6 +11,9 @@ import {
   snapsToRoad,
   splitPlaces,
   pickByNeighbours,
+  parseRoad,
+  roadQuery,
+  chooseRoadPoints,
   farOffKm,
 } from '../js/places.js';
 import { routeLocations, buildValhallaRequest, isSnapError } from '../js/core.js';
@@ -217,4 +220,50 @@ test('farOffKm: avvisa solo per tappe molto fuori dal giro, non per i giri di an
   // andata e ritorno alla stessa partenza: la meta lontana è voluta
   assert.equal(farOffKm([p(43.52, 13.6), p(46.5, 10.4), p(43.52, 13.6)], 1), 0);
   assert.equal(farOffKm([p(43.52, 13.6), p(46.5, 10.4)], 0), 0);
+});
+
+test('parseRoad: riconosce le strade scritte in tanti modi', () => {
+  const label = (t) => (parseRoad(t) || {}).label;
+  for (const t of ['S.S. 123', 'SS123', 'ss 123', 'S.S. n° 123', 'Strada Statale 123', 'statale 123', "SS 123 dell'Abetone"]) assert.equal(label(t), 'SS 123', t);
+  assert.equal(label('SS 3 bis'), 'SS 3 bis');
+  assert.equal(label('S.P. 45'), 'SP 45');
+  assert.equal(label('SP45'), 'SP 45');
+  assert.equal(label('Strada provinciale 9'), 'SP 9');
+  assert.equal(label('SR 71'), 'SR 71');
+  assert.equal(label('A14'), 'A 14');
+  assert.equal(label('Autostrada A1'), 'A 1');
+  assert.equal(label('E45'), 'E 45');
+  for (const t of ['Fi Pi Li', 'Fi-Pi-Li', 'FIPILI', 'Firenze Pisa Livorno', 'Firenze-Pisa-Livorno', 'superstrada PPL']) assert.equal(label(t), 'Fi-Pi-Li', t);
+  // località normali non diventano strade
+  for (const t of ['Siena', 'Sassari', 'A Roma', 'Passo Gavia', 'S. Lorenzo', 'Ascoli', 'Assisi', '46.5, 10.4', 'Sestri Levante', 'Pisa', 'Spoleto', 'Roma Eur', 'Savona']) assert.equal(parseRoad(t), null, t);
+});
+
+test('roadQuery e chooseRoadPoints: la strada tra la tappa prima e quella dopo', () => {
+  const q = roadQuery(parseRoad('SS 123'), [43.5, 11], [43.7, 11.4]);
+  assert.match(q, /way\["highway"\]\["ref"~"\(\^\|;\) \*SS \*123/);
+  assert.match(q, /out geom/);
+  assert.match(roadQuery(parseRoad('Fi-Pi-Li'), [43.77, 11.25]), /Firenze\.\?Pisa\.\?Livorno/);
+  // tappe molto distanti: due cerchi invece di un rettangolo enorme
+  assert.match(roadQuery(parseRoad('A14'), [43.5, 13.5], [44.5, 11.3]), /around:35000/);
+
+  // una strada dritta verso est a lat 43.6, da lon 11.0 a 11.6
+  const way = { geometry: Array.from({ length: 61 }, (_, i) => ({ lat: 43.6, lon: 11 + i * 0.01 })) };
+  const p = chooseRoadPoints([way], [43.55, 11.05], [43.62, 11.55]);
+  assert.deepEqual(p.before, [43.6, 11.05]);
+  assert.deepEqual(p.after, [43.6, 11.55]);
+  assert.ok(Math.abs(p.mid[1] - 11.3) < 0.02);
+  // solo una tappa vicina: un punto solo
+  assert.deepEqual(chooseRoadPoints([way], [43.55, 11.05]), { mid: [43.6, 11.05], before: null, after: null });
+  // strada troppo lontana (oltre 40 km): non è quella
+  assert.equal(chooseRoadPoints([way], [45, 11.05]), null);
+  assert.equal(chooseRoadPoints([], [43.55, 11.05]), null);
+});
+
+test('scorePlace: con tappa prima e dopo vince l\'omonimo che non allunga il giro', () => {
+  const mk = (lat, lon) => ({ lat: String(lat), lon: String(lon), category: 'place', type: 'town', importance: 0.5, name: 'X', address: {} });
+  const prev = [44.12, 11.38];
+  const next = [43.77, 11.25];
+  const good = scorePlace(mk(43.95, 11.3), { near: prev, next });
+  const bad = scorePlace(mk(45.6, 9.5), { near: prev, next });
+  assert.ok(good > bad + 0.3);
 });

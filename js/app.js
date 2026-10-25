@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610222005';
-import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm } from './places.js?v=202610222005';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610222005';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610222005';
-import { CONFIG } from './config.js?v=202610222005';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610222005';
-import { mountRoadbookView } from './roadbook-view.js?v=202610222005';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610222005';
+} from './core.js?v=202610250632';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610250632';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610250632';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610250632';
+import { CONFIG } from './config.js?v=202610250632';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610250632';
+import { mountRoadbookView } from './roadbook-view.js?v=202610250632';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610250632';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -187,7 +187,7 @@ function renderMarkers() {
     });
     m.on('dragend', async () => {
       const { lat, lng } = m.getLatLng();
-      Object.assign(s, { lat, lon: lng, snap: false, name: coordLabel(lat, lng), query: coordLabel(lat, lng), context: 'Punto spostato a mano', kind: '', candidates: [], crossing: null });
+      Object.assign(s, { lat, lon: lng, snap: false, name: coordLabel(lat, lng), query: coordLabel(lat, lng), context: 'Punto spostato a mano', kind: '', candidates: [], crossing: null, road: null });
       if (s.pass) s.pass = { mode: 'auto', sides: null, up: 0, down: 0 };
       changed();
       toast(`Tappa ${state.stops.indexOf(s) + 1} spostata: ricalcolo il percorso passando da lì.`);
@@ -831,6 +831,19 @@ function applyCandidate(s, c) {
   // per i passi si può scegliere come farli (completo, andata e ritorno)
   if (c.category === 'pass') s.pass = { mode: 'auto', sides: null, up: 0, down: 0 };
   else delete s.pass;
+  // una strada ("SS 123") è un passaggio: il percorso la percorre tra il punto di entrata e quello di uscita
+  if (c.category === 'roadref') Object.assign(s, { type: 'through', snap: false, road: c.road });
+  else delete s.road;
+}
+
+/** Tappe già trovate subito prima e subito dopo: la tappa giusta è quella coerente con entrambe. */
+function neighbourPoints(stop) {
+  const i = state.stops.indexOf(stop);
+  let before = null;
+  let after = null;
+  for (let k = i - 1; k >= 0 && !before; k--) if (isPlaced(state.stops[k])) before = [state.stops[k].lat, state.stops[k].lon];
+  for (let k = i + 1; k < state.stops.length && !after; k++) if (isPlaced(state.stops[k])) after = [state.stops[k].lat, state.stops[k].lon];
+  return before ? { near: before, next: after } : { near: after, next: null };
 }
 
 /** Coordinate della tappa trovata più vicina prima (o dopo) di questa: aiuta a scegliere tra omonimi. */
@@ -860,7 +873,7 @@ async function resolveStop(stop, q) {
   Object.assign(stop, { manual: false, query: q, status: 'searching', message: '', candidates: [], showAlts: false, lat: null, lon: null });
   changed();
   try {
-    const found = await searchPlaces(q, { near: nearPoint(stop) });
+    const found = await searchPlaces(q, neighbourPoints(stop));
     if (!state.stops.includes(stop) || stop.query !== q) return; // la riga è cambiata nel frattempo
     if (!found.length) {
       Object.assign(stop, { status: 'notfound', message: `«${q}» non trovato. Controlla il nome o aggiungi comune o provincia (es. «Gavia, Sondrio»).` });
@@ -891,11 +904,17 @@ async function pasteList(stop, parts) {
   while (end < state.stops.length && state.stops[end].status === 'empty') end++;
   state.stops.splice(i, end - i, ...rows);
   changed();
-  for (const r of rows) {
+  for (const r of roadsLast(rows)) {
     if (!state.stops.includes(r)) continue;
     await resolveStop(r, r.query);
   }
   fitAll();
+}
+
+/** Prima le località, poi le strade ("SS 123"): per trovare una strada servono le tappe prima e dopo. */
+function roadsLast(rows) {
+  const isRoad = (r) => !!parseRoad(r.query);
+  return [...rows.filter((r) => !isRoad(r)), ...rows.filter(isRoad)];
 }
 
 async function useMyPosition(stop) {
@@ -1000,7 +1019,7 @@ $('#btn-list-apply').addEventListener('click', async () => {
   state.stops = rows;
   showView('rows');
   changed();
-  for (const r of rows) {
+  for (const r of roadsLast(rows)) {
     if (r.status === 'ok' || !state.stops.includes(r)) continue;
     await resolveStop(r, r.query);
   }
@@ -1159,7 +1178,7 @@ let restoring = false;
 
 /** Ciò che conta per annullare: posizioni, tipi, passi, anello (non i nomi che arrivano dopo). */
 function historyKey(data) {
-  return JSON.stringify([data.loop, data.stops.map((s) => [s.lat, s.lon, s.type, s.pass ? [s.pass.mode, s.pass.up, s.pass.down] : 0])]);
+  return JSON.stringify([data.loop, data.stops.map((s) => [s.lat, s.lon, s.type, s.pass ? [s.pass.mode, s.pass.up, s.pass.down] : 0, s.road ? 1 : 0])]);
 }
 
 function trackHistory() {
@@ -1180,7 +1199,7 @@ function restoreHistory(data) {
   state.loop = data.loop;
   $('#opt-loop').checked = state.loop;
   state.stops = data.stops.map((x) =>
-    placedStop(x.lat, x.lon, x.name, { type: x.type, snap: !!x.snap, context: x.context || '', kind: x.kind || '', ...(x.pass ? { pass: JSON.parse(JSON.stringify(x.pass)) } : {}) }),
+    placedStop(x.lat, x.lon, x.name, { type: x.type, snap: !!x.snap, context: x.context || '', kind: x.kind || '', ...(x.pass ? { pass: JSON.parse(JSON.stringify(x.pass)) } : {}), ...(x.road ? { road: JSON.parse(JSON.stringify(x.road)) } : {}) }),
   );
   changed();
   restoring = false;
@@ -2134,7 +2153,7 @@ function snapshot() {
     name: state.name,
     loop: state.loop,
     options: { ...state.options },
-    stops: placed().map(({ lat, lon, name, type, snap, context, kind, pass }) => ({ lat, lon, name, type, snap, context, kind, ...(pass ? { pass } : {}) })),
+    stops: placed().map(({ lat, lon, name, type, snap, context, kind, pass, road }) => ({ lat, lon, name, type, snap, context, kind, ...(pass ? { pass } : {}), ...(road ? { road } : {}) })),
   };
 }
 
@@ -2149,6 +2168,7 @@ function applySnapshot(s) {
       context: x.context || '',
       kind: x.kind || (x.pass ? 'Passo' : ''),
       ...(x.pass ? { pass: { mode: x.pass.mode || 'auto', sides: x.pass.sides || null, up: x.pass.up || 0, down: x.pass.down || 0 } } : {}),
+      ...(x.road ? { road: { before: x.road.before || null, after: x.road.after || null } } : {}),
     }),
   );
   syncControls();

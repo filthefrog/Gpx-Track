@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { DEFAULT_OPTIONS, haversine, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, isLocationsError, locationLimit, nextChunkEnd, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610222005';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext } from './places.js?v=202610222005';
-import { overpassQuery, passSides } from './passes.js?v=202610222005';
+import { DEFAULT_OPTIONS, haversine, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, isLocationsError, locationLimit, nextChunkEnd, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610250632';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext, parseRoad, roadQuery, chooseRoadPoints } from './places.js?v=202610250632';
+import { overpassQuery, passSides } from './passes.js?v=202610250632';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const HEIGHT_URL = 'https://valhalla1.openstreetmap.de/height';
@@ -319,18 +319,63 @@ function coordLabel(lat, lon) {
  * `near` = [lat, lon] della tappa precedente, per preferire gli omonimi vicini.
  * Restituisce i candidati migliori: [{ lat, lon, name, context, kind, category }].
  */
-export async function searchPlaces(query, { near = null } = {}) {
+export async function searchPlaces(query, { near = null, next = null } = {}) {
   const coords = parseCoordinates(query);
   if (coords) {
     const [lat, lon] = coords;
     const place = await reverseGeocode(lat, lon).catch(() => null);
     return [{ lat, lon, name: place ? place.name : coordLabel(lat, lon), context: place ? place.context : coordLabel(lat, lon), kind: 'Coordinate', category: 'coords' }];
   }
+  // una strada ("SS 123", "Fi-Pi-Li"): si cerca in OpenStreetMap tra le tappe vicine; se non va si prova come nome
+  const road = near ? parseRoad(query) : null;
+  if (road) {
+    try {
+      const found = await searchRoad(road, { near, next });
+      if (found.length) return found;
+    } catch {
+      // Overpass occupato o strada non trovata: si ripiega sulla ricerca per nome
+    }
+  }
+  const box = searchBox(near, next);
   for (const v of queryVariants(query)) {
-    const list = await nominatim('search', { q: v.q, limit: '8', extratags: '1' });
-    if (list.length) return rankPlaces(list, { near, kind: v.kind }).slice(0, 6);
+    // le tappe vicine orientano la ricerca: i risultati della zona passano avanti, gli omonimi lontani no
+    const list = await nominatim('search', { q: v.q, limit: '10', extratags: '1', ...(box ? { viewbox: box } : {}) });
+    if (list.length) return rankPlaces(list, { near, next, kind: v.kind }).slice(0, 6);
   }
   return [];
+}
+
+/** Rettangolo (lon1,lat1,lon2,lat2) attorno alle tappe vicine, per orientare la ricerca di Nominatim. */
+function searchBox(near, next) {
+  const pts = [near, next].filter(Boolean);
+  if (!pts.length) return null;
+  const pad = pts.length === 2 ? 0.8 : 2;
+  const lats = pts.map((p) => p[0]);
+  const lons = pts.map((p) => p[1]);
+  const r = (v) => v.toFixed(3);
+  return `${r(Math.min(...lons) - pad)},${r(Math.max(...lats) + pad)},${r(Math.max(...lons) + pad)},${r(Math.min(...lats) - pad)}`;
+}
+
+/** Una strada con la sua sigla: [{ lat, lon, name, context, kind, category: 'roadref', road: { before, after } }]. */
+export async function searchRoad(road, { near, next = null }) {
+  const res = await fetch(`${OVERPASS_URL}?data=${encodeURIComponent(roadQuery(road, near, next))}`);
+  if (res.status === 429 || res.status === 504) throw new Error('Il servizio delle strade (Overpass) è occupato. Riprova tra un minuto.');
+  if (!res.ok) throw new Error(`Lettura della strada non riuscita (HTTP ${res.status}).`);
+  const body = await res.json();
+  const pts = chooseRoadPoints(body.elements, near, next);
+  if (!pts) return [];
+  const town = await townAt(pts.mid[0], pts.mid[1]).catch(() => '');
+  return [
+    {
+      lat: pts.mid[0],
+      lon: pts.mid[1],
+      name: road.label,
+      context: town ? `presso ${town}` : '',
+      kind: 'Strada',
+      category: 'roadref',
+      road: { before: pts.before, after: pts.after },
+    },
+  ];
 }
 
 /** Nome e contesto del punto alle coordinate date. */

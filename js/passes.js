@@ -7,7 +7,7 @@
 // "passaggi" prima e dopo il passo, obbligano il percorso a salire e scendere dal
 // versante scelto.
 
-import { haversine, pointSegmentDistance, cumulativeDistances } from './core.js?v=202610222005';
+import { haversine, pointSegmentDistance, cumulativeDistances } from './core.js?v=202610250632';
 
 export const PASS = Object.freeze({
   SEARCH_RADIUS: 5000, // metri attorno al passo da chiedere a Overpass
@@ -224,6 +224,14 @@ export function expandStops(stops, loop = false) {
     const p = s.pass;
     // solo le tappe intermedie: partenza e arrivo restano dove sono
     const intermediate = i > 0 && (i < stops.length - 1 || loop);
+    // una strada scritta come tappa ("SS 123"): si entra dove è più vicina alla tappa prima ed esce dove è più vicina a quella dopo
+    if (intermediate && s.road && (s.road.before || s.road.after)) {
+      const via = (p) => ({ lat: p[0], lon: p[1], name: s.name, type: 'through', aux: true, snap: false });
+      if (s.road.before) out.push(via(s.road.before));
+      out.push(s);
+      if (s.road.after) out.push(via(s.road.after));
+      return;
+    }
     if (!intermediate || !p || p.mode === 'auto' || !p.sides || !p.sides[p.up]) {
       out.push(s);
       return;

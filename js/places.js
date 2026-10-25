@@ -1,7 +1,7 @@
 // Funzioni pure per trovare e descrivere i luoghi (risultati Nominatim).
 // Nessun accesso a rete o DOM: testate in tests/places.test.mjs.
 
-import { haversine } from './core.js?v=202610222005';
+import { haversine } from './core.js?v=202610250632';
 
 // ---------------------------------------------------------------------------
 // Coordinate scritte a mano o incollate da una mappa
@@ -265,13 +265,18 @@ const CATEGORY_BONUS = {
  * passa per paesi e passi), tipo atteso dalla ricerca ("Passo …") e distanza dalla
  * tappa precedente (un omonimo a 800 km è quasi sempre quello sbagliato).
  */
-export function scorePlace(r, { near = null, kind = null } = {}) {
+export function scorePlace(r, { near = null, next = null, kind = null } = {}) {
   const cat = placeCategory(r);
   let score = Number(r.importance) || 0;
   score += CATEGORY_BONUS[cat] ?? 0;
   if (kind && cat === kind) score += 0.35;
   if (kind === 'pass' && cat !== 'pass' && cat !== 'road') score -= 0.1;
-  if (near) {
+  if (near && next) {
+    // tra la tappa prima e quella dopo: conta di quanto si allunga il giro, non la sola distanza
+    const c = [Number(r.lat), Number(r.lon)];
+    const extra = (haversine(near, c) + haversine(c, next) - haversine(near, next)) / 1000;
+    score -= Math.min(0.9, extra / 400);
+  } else if (near) {
     const km = haversine(near, [Number(r.lat), Number(r.lon)]) / 1000;
     score -= Math.min(0.5, km / 1200);
   }
@@ -382,4 +387,96 @@ export function farOffKm(stops, i) {
   const direct = haversine([nb[0].lat, nb[0].lon], [nb[1].lat, nb[1].lon]);
   const extra = detourMeters(nb[0], s, nb[1]);
   return direct > 30000 && extra > 100000 && extra > 1.2 * direct ? Math.round(extra / 1000) : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Strade scritte come tappa: "S.S. 123", "SP45", "A14", "Fi Pi Li"…
+// ---------------------------------------------------------------------------
+
+const NUM = '(?:n(?:r|\\.|°|º)?\\.?\\s*)?';
+const SUFFIX = '(bis|ter|quater|dir|var|racc)?';
+const REF_PATTERNS = [
+  ['SS', new RegExp(`^(?:s\\.?\\s?s\\.?|strada\\s+statale|statale)\\s*${NUM}(\\d{1,3})\\s*${SUFFIX}(?![a-z0-9])`, 'i')],
+  ['SP', new RegExp(`^(?:s\\.?\\s?p\\.?|strada\\s+provinciale|provinciale)\\s*${NUM}(\\d{1,4})\\s*${SUFFIX}(?![a-z0-9])`, 'i')],
+  ['SR', new RegExp(`^(?:s\\.?\\s?r\\.?|strada\\s+regionale|regionale)\\s*${NUM}(\\d{1,3})\\s*${SUFFIX}(?![a-z0-9])`, 'i')],
+  ['A', new RegExp(`^(?:autostrada\\s+)?a\\s?-?\\s?(\\d{1,2})\\s*${SUFFIX}(?![a-z0-9])`, 'i')],
+  ['E', /^(?:strada\s+europea\s+)?e\s?-?\s?(\d{1,3})()(?![a-z0-9])/i],
+  ['RA', /^(?:r\.?\s?a\.?|raccordo\s+autostradale)\s*-?\s?(\d{1,2})()(?![a-z0-9])/i],
+];
+const NAMED_ROADS = [
+  { re: /(?:^|[^a-z])fi[\s.\-/]*pi[\s.\-/]*li(?![a-z])|firenze[\s,.\-/]*pisa[\s,.\-/]*livorno|(?:^|[^a-z])p\.?p\.?l\.?(?![a-z])/i, label: 'Fi-Pi-Li', ref: 'FI-?PI-?LI', name: 'Firenze.?Pisa.?Livorno|FI-?PI-?LI' },
+  { re: /^(?:grande\s+)?raccordo\s+anulare$|^g\.?r\.?a\.?$/i, label: 'Grande Raccordo Anulare', ref: 'A 90|GRA', name: 'Grande Raccordo Anulare' },
+  { re: /variante\s+di\s+valico/i, label: 'Variante di Valico', ref: null, name: 'Variante di Valico' },
+];
+
+/**
+ * Riconosce una strada scritta al posto di una località.
+ * Restituisce { label, ref, name } con le espressioni per cercarla in OpenStreetMap, oppure null.
+ * ref: espressione sul campo "ref" (es. "SS *123"); name: espressione sul nome.
+ */
+export function parseRoad(text) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!t || t.length > 60 || parseCoordinates(t)) return null;
+  for (const n of NAMED_ROADS) if (n.re.test(t)) return { label: n.label, ref: n.ref, name: n.name };
+  for (const [type, re] of REF_PATTERNS) {
+    const m = t.match(re);
+    if (!m) continue;
+    const num = String(Number(m[1]));
+    const suffix = (m[2] || '').toLowerCase();
+    return {
+      label: `${type} ${num}${suffix ? ` ${suffix}` : ''}`,
+      // "SS 12", "SS12", "SS 12 dir" e anche più strade insieme "SS 12;E 45"
+      ref: `${type} *${num}${suffix ? ` *${suffix}` : ''}`,
+      name: null,
+      exact: !!suffix,
+    };
+  }
+  return null;
+}
+
+const noQuotes = (s) => s.replace(/"/g, '');
+
+/** Ricerca Overpass delle strade con quella sigla nella zona tra le tappe vicine (geometria compresa). */
+export function roadQuery(road, near, next = null) {
+  const parts = [];
+  const pad = 0.25;
+  const anchors = [near, next].filter(Boolean);
+  let areas;
+  if (anchors.length === 2) {
+    const south = Math.min(anchors[0][0], anchors[1][0]) - pad;
+    const north = Math.max(anchors[0][0], anchors[1][0]) + pad;
+    const west = Math.min(anchors[0][1], anchors[1][1]) - pad;
+    const east = Math.max(anchors[0][1], anchors[1][1]) + pad;
+    areas = north - south + (east - west) <= 3.5 ? [`(${south},${west},${north},${east})`] : anchors.map((a) => `(around:35000,${a[0]},${a[1]})`);
+  } else {
+    areas = [`(around:60000,${anchors[0][0]},${anchors[0][1]})`];
+  }
+  for (const area of areas) {
+    if (road.ref) {
+      const rx = road.name ? road.ref : `(^|;) *${road.ref}${road.exact ? '' : '( *[A-Za-z]+)?'} *(;|$)`;
+      parts.push(`way["highway"]["ref"~"${noQuotes(rx)}",i]${area};`);
+    }
+    if (road.name) parts.push(`way["highway"]["name"~"${noQuotes(road.name)}",i]${area};`);
+  }
+  return `[out:json][timeout:30];(${parts.join('')});out geom qt;`;
+}
+
+/**
+ * Dai tratti della strada (Overpass, `geometry`) ricava dove entrare, il punto centrale e dove uscire:
+ * il punto della strada più vicino alla tappa prima, quello più vicino alla tappa dopo e uno a metà.
+ * Restituisce { mid, before, after } ([lat, lon], before/after possono mancare) o null.
+ */
+export function chooseRoadPoints(elements, near, next = null, { maxKm = 40 } = {}) {
+  const nodes = [];
+  for (const el of elements || []) for (const g of el.geometry || []) if (Number.isFinite(g.lat) && Number.isFinite(g.lon)) nodes.push([g.lat, g.lon]);
+  if (!nodes.length || !near) return null;
+  const nearest = (to) => nodes.reduce((best, n) => (haversine(n, to) < best.d ? { n, d: haversine(n, to) } : best), { n: null, d: Infinity });
+  const a = nearest(near);
+  if (a.d > maxKm * 1000) return null;
+  if (!next) return { mid: a.n, before: null, after: null };
+  const b = nearest(next);
+  if (b.d > maxKm * 1000) return { mid: a.n, before: null, after: null };
+  if (haversine(a.n, b.n) < 3000) return { mid: a.n, before: null, after: null };
+  const half = [(a.n[0] + b.n[0]) / 2, (a.n[1] + b.n[1]) / 2];
+  return { mid: nearest(half).n, before: a.n, after: b.n };
 }

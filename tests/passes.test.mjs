@@ -141,3 +141,17 @@ test('findSpurs: una sosta in una stradina senza uscita è un\'inversione, una s
   assert.deepEqual(findSpurs(road(0, 20), [stops[0], { lat: 43.01, lon: 11, type: 'break' }, stops[2]]), []);
   assert.deepEqual(findSpurs([], stops), []);
 });
+
+test('expandStops: una strada come tappa entra ed esce dai punti della strada', () => {
+  const stops = [
+    { lat: 43.5, lon: 11, name: 'A', type: 'break' },
+    { lat: 43.6, lon: 11.3, name: 'SS 123', type: 'through', road: { before: [43.6, 11.05], after: [43.6, 11.55] } },
+    { lat: 43.7, lon: 11.6, name: 'B', type: 'break' },
+  ];
+  const out = expandStops(stops);
+  assert.deepEqual(out.map((s) => [s.name, !!s.aux, s.type]), [['A', false, 'break'], ['SS 123', true, 'through'], ['SS 123', false, 'through'], ['SS 123', true, 'through'], ['B', false, 'break']]);
+  assert.deepEqual([out[1].lat, out[1].lon], [43.6, 11.05]);
+  assert.deepEqual([out[3].lat, out[3].lon], [43.6, 11.55]);
+  // se è la prima o l'ultima tappa resta un punto solo
+  assert.equal(expandStops([stops[1], stops[2]]).length, 2);
+});
