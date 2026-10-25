@@ -5,13 +5,14 @@
 // poi ricalcolano il percorso a modo loro. Per tenerli sul giro voluto si aggiungono dei
 // "punti di forzatura" (anchor) sulla strada scelta e si divide il giro in tratte, una per link.
 
-import { haversine, cumulativeDistances } from './core.js?v=202610251321';
+import { haversine, cumulativeDistances } from './core.js?v=202610251323';
 
 // Tutte le costanti in un posto solo (limiti verificati il 4/10/2026, vedi docs/verifiche.md)
 export const LINKS = Object.freeze({
   GOOGLE_MOBILE_WAYPOINTS: 3, // documentazione Google Maps URLs: 3 su browser mobile
   GOOGLE_DESKTOP_WAYPOINTS: 9, // 9 altrove
-  APPLE_WAYPOINTS: 3, // Apple non dichiara un limite: si parte prudenti, DA VERIFICARE su iPhone
+  APPLE_MAX_POINTS: 15, // Apple Mappe accetta al massimo 15 punti in tutto (partenza e arrivo compresi)
+  APPLE_WAYPOINTS: 13, // quindi 13 punti intermedi
   GOOGLE_MAX_URL: 2048, // caratteri
   ANCHOR_EVERY_KM: 10, // un punto di forzatura al massimo ogni ~10 km
   DIVERGENCE_M: 300, // oltre questa distanza dalla strada "veloce" il giro diverge
@@ -269,7 +270,28 @@ export function legKm(leg) {
  * Tratte pronte per l'interfaccia, per una piattaforma:
  * [{ points, url, km, anchors, forced, tooLong }].
  */
+/**
+ * Porta la sequenza dentro il limite di punti di un solo link: tutte le tappe restano, i punti di forzatura
+ * che servono a non lasciare la strada scelta (deviazioni) hanno la precedenza, gli altri si diradano in modo uniforme.
+ * Se le sole tappe superano il limite la sequenza non cambia (si divide in più tratte).
+ */
+export function fitPoints(points, maxPoints) {
+  if (points.length <= maxPoints) return points;
+  const stops = points.filter((p) => p.kind === 'tappa').length;
+  const room = maxPoints - stops;
+  if (room < 0) return points;
+  const spread = (list, n) => (n >= list.length ? list : n <= 0 ? [] : Array.from({ length: n }, (_, i) => list[Math.floor(((i + 0.5) * list.length) / n)]));
+  const anchors = points.filter((p) => p.kind === 'anchor');
+  const forced = anchors.filter((a) => a.reason === 'deviazione');
+  const others = anchors.filter((a) => a.reason !== 'deviazione');
+  const keepForced = spread(forced, room);
+  const keepOthers = spread(others, room - keepForced.length);
+  const keep = new Set([...keepForced, ...keepOthers]);
+  return points.filter((p) => p.kind === 'tappa' || keep.has(p));
+}
+
 export function buildLinks(points, platform, opts = {}) {
+  if (platform === 'apple') points = fitPoints(points, LINKS.APPLE_MAX_POINTS);
   const max =
     platform === 'apple' ? LINKS.APPLE_WAYPOINTS : platform === 'google-desktop' ? LINKS.GOOGLE_DESKTOP_WAYPOINTS : LINKS.GOOGLE_MOBILE_WAYPOINTS;
   return splitLegs(points, max).map((leg) => {

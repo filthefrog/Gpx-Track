@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610251321';
-import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610251321';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251321';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251321';
-import { CONFIG } from './config.js?v=202610251321';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610251321';
-import { mountRoadbookView } from './roadbook-view.js?v=202610251321';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251321';
+} from './core.js?v=202610251323';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610251323';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251323';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251323';
+import { CONFIG } from './config.js?v=202610251323';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610251323';
+import { mountRoadbookView } from './roadbook-view.js?v=202610251323';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251323';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);

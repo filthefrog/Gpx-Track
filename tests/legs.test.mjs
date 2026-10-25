@@ -10,6 +10,7 @@ import {
   splitLegs,
   googleLink,
   appleLink,
+  fitPoints,
   buildLinks,
   stopsOnlySequence,
 } from '../js/legs.js';
@@ -178,4 +179,24 @@ test('stopsOnlySequence: solo tappe, distanze in linea d\'aria', () => {
   assert.equal(seq[0].at, 0);
   assert.ok(Math.abs(seq[2].at - haversine([45, 10], [45.2, 10])) < 1);
   assert.equal(buildLinks(seq, 'google-mobile').length, 1);
+});
+
+test('fitPoints: tutte le tappe restano e il giro sta in un solo link Apple da 15 punti', () => {
+  const mk = (i, kind, reason) => ({ lat: 45 + i * 0.01, lon: 10, at: i * 1000, kind, ...(reason ? { reason } : {}), ...(kind === 'tappa' ? { name: `T${i}` } : {}) });
+  const points = [];
+  for (let i = 0; i < 60; i++) points.push(mk(i, i % 15 === 0 ? 'tappa' : 'anchor', i % 7 === 0 ? 'deviazione' : 'passo'));
+  const stops = points.filter((p) => p.kind === 'tappa');
+  const fit = fitPoints(points, 15);
+  assert.equal(fit.length, 15);
+  for (const s of stops) assert.ok(fit.includes(s));
+  // ordine lungo il giro conservato
+  for (let i = 1; i < fit.length; i++) assert.ok(fit[i].at > fit[i - 1].at);
+  const links = buildLinks(points, 'apple');
+  assert.equal(links.length, 1);
+  assert.equal((links[0].url.match(/waypoint=/g) || []).length, 13);
+  // già dentro il limite: invariato; troppe tappe: si divide in più link
+  assert.equal(fitPoints(points.slice(0, 10), 15).length, 10);
+  const many = Array.from({ length: 20 }, (_, i) => mk(i, 'tappa'));
+  assert.equal(fitPoints(many, 15).length, 20);
+  assert.equal(buildLinks(many, 'apple').length, 2);
 });
