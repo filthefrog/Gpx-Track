@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610251323';
-import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610251323';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251323';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251323';
-import { CONFIG } from './config.js?v=202610251323';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610251323';
-import { mountRoadbookView } from './roadbook-view.js?v=202610251323';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251323';
+} from './core.js?v=202610251326';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610251326';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251326';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251326';
+import { CONFIG } from './config.js?v=202610251326';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610251326';
+import { mountRoadbookView } from './roadbook-view.js?v=202610251326';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251326';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1951,13 +1951,21 @@ async function loadFast(r, key) {
   const ctrl = new AbortController();
   fastAbort = ctrl;
   fast = { key, loading: true };
-  try {
-    const shape = await fetchFastShape(r.stops.filter((s) => !s.aux), r.loop, ctrl.signal);
-    if (fast.key === key) fast = { key, shape };
-  } catch (err) {
-    if (err.name === 'AbortError') return;
-    console.warn('Confronto con la strada veloce non riuscito', err);
-    if (fast.key === key) fast = { key, failed: true };
+  const stops = r.stops.filter((s) => !s.aux);
+  // il server pubblico a volte rifiuta o è lento: si riprova una volta dopo una breve pausa
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const shape = await fetchFastShape(stops, r.loop, ctrl.signal);
+      if (fast.key === key) fast = { key, shape };
+      break;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.warn('Confronto con la strada veloce non riuscito', err);
+      if (attempt === 0) {
+        await new Promise((ok) => setTimeout(ok, 2500));
+        if (ctrl.signal.aborted || fast.key !== key) return;
+      } else if (fast.key === key) fast = { key, failed: true };
+    }
   }
   renderMapsLinks();
 }
@@ -2012,8 +2020,8 @@ function renderMapsLinks() {
       });
       points = routePointsSequence(stops, anchors);
       if (fast.failed) {
-        note = 'Confronto con la strada più veloce non riuscito: i punti di forzatura sono solo ogni 10 km circa.';
-        kind = 'warn';
+        note = 'Non riesco a leggere la strada più veloce per ora, quindi i punti di controllo sono distribuiti in modo uniforme lungo il giro. Il link funziona lo stesso: se Mappe sceglie strade diverse dalle tue, usa il GPX.';
+        kind = '';
       }
     }
   } else if (failed) {

@@ -1,7 +1,7 @@
 // Accesso ai servizi gratuiti: Valhalla (percorsi) e Nominatim (luoghi).
-import { DEFAULT_OPTIONS, haversine, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, isLocationsError, locationLimit, nextChunkEnd, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610251323';
-import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext, parseRoad, roadQuery, chooseRoadPoints } from './places.js?v=202610251323';
-import { overpassQuery, passSides } from './passes.js?v=202610251323';
+import { DEFAULT_OPTIONS, haversine, buildValhallaRequest, valhallaUrl, isCostingError, isSnapError, isDistanceError, distanceLimit, isLocationsError, locationLimit, nextChunkEnd, mergeTrips, parseTrip, curvature, pickScenic, resampleShape, encodePolyline } from './core.js?v=202610251326';
+import { parseCoordinates, queryVariants, rankPlaces, placeName, placeContext, parseRoad, roadQuery, chooseRoadPoints } from './places.js?v=202610251326';
+import { overpassQuery, passSides } from './passes.js?v=202610251326';
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
 export const HEIGHT_URL = 'https://valhalla1.openstreetmap.de/height';
@@ -401,15 +401,22 @@ async function townAt(lat, lon) {
  * `place` è il paese verso cui scende il versante (può mancare).
  */
 export async function fetchPassSides(lat, lon) {
+  const url = `${OVERPASS_URL}?data=${encodeURIComponent(overpassQuery(lat, lon))}`;
   let res;
-  try {
-    res = await fetch(`${OVERPASS_URL}?data=${encodeURIComponent(overpassQuery(lat, lon))}`);
-  } catch {
-    throw new Error('Impossibile leggere le strade del passo: controlla la connessione e riprova.');
+  // il servizio è gratuito e a volte occupato: un secondo tentativo dopo una pausa
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await fetch(url);
+    } catch {
+      res = null;
+    }
+    if (res && res.ok) break;
+    if (attempt === 0) await wait(2500);
   }
-  if (res.status === 429 || res.status === 504)
-    throw new Error('Il servizio delle strade (Overpass) è occupato. Riprova tra un minuto.');
-  if (!res.ok) throw new Error(`Lettura delle strade del passo non riuscita (HTTP ${res.status}). Riprova tra poco.`);
+  if (!res) throw new Error('Non riesco a leggere le strade attorno al passo: controlla la connessione. Il giro funziona lo stesso in modalità automatica.');
+  if (res.status === 429 || res.status === 504 || res.status === 503)
+    throw new Error('Il servizio che legge le strade è occupato. Il giro funziona lo stesso in modalità automatica: riprova tra un minuto per scegliere i versanti.');
+  if (!res.ok) throw new Error(`Non riesco a leggere le strade attorno al passo (errore ${res.status}). Il giro funziona lo stesso in modalità automatica: riprova tra poco.`);
   const body = await res.json();
   const sides = passSides(body.elements || [], [lat, lon]);
   for (const side of sides) {
