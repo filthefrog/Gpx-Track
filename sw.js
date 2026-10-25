@@ -1,6 +1,6 @@
 // Service worker di Traccemoto: app disponibile offline e mappa già vista in cache.
 // VERSION viene aggiornata da `npm run versione` insieme ai ?v= di CSS e moduli.
-const VERSION = '202610250632';
+const VERSION = '202610251318';
 const SHELL = `tracce-shell-${VERSION}`;
 const TILES = 'tracce-mappa-v1';
 const MAX_TILES = 1500;

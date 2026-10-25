@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610250632';
-import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610250632';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610250632';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610250632';
-import { CONFIG } from './config.js?v=202610250632';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610250632';
-import { mountRoadbookView } from './roadbook-view.js?v=202610250632';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610250632';
+} from './core.js?v=202610251318';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610251318';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251318';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251318';
+import { CONFIG } from './config.js?v=202610251318';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610251318';
+import { mountRoadbookView } from './roadbook-view.js?v=202610251318';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251318';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1921,6 +1921,12 @@ for (const input of document.querySelectorAll('input[name="maps-platform"]')) {
     renderMapsLinks();
   });
 }
+// «Solo tappe»: Google o Apple calcolano la strada da sole, utile per confrontare tempi e km con i nostri
+let mapsDirect = false;
+$('#maps-direct').addEventListener('change', (e) => {
+  mapsDirect = e.target.checked;
+  renderMapsLinks();
+});
 $('#maps-card').addEventListener('toggle', () => renderMapsLinks());
 
 /** Tappe del giro (senza i punti dei versanti) con la distanza lungo il percorso calcolato. */
@@ -1986,6 +1992,12 @@ function renderMapsLinks() {
   let crowFly = false;
   if (placed().length < 2) {
     note = 'Servono almeno partenza e arrivo.';
+  } else if (mapsDirect) {
+    // solo le tappe: la strada la sceglie l'app di mappe, il tempo che mostra è il suo
+    const stops = exportStops().map((s) => ({ ...s, name: short(s.name) }));
+    points = stopsOnlySequence(state.loop ? [...stops, stops[0]] : stops);
+    note = `Solo le tappe: ${PLATFORM_LABEL[mapsPlatform]} sceglie le strade e mostra il suo tempo. Il nostro: ${route ? `${formatKm(route.parsed.summary.length)} · ${formatDuration(route.parsed.summary.time)}` : 'in calcolo'}.`;
+    kind = '';
   } else if (fresh) {
     if (!fast || fast.key !== routeKey) loadFast(route, routeKey);
     if (fast.loading) {
