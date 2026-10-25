@@ -760,3 +760,6 @@ input:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+.order-tip { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
+.order-tip .link-btn { font-weight: 700; }

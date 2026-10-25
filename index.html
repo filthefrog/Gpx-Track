@@ -33,11 +33,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <link rel="stylesheet" href="css/roadbook.css?v=202610251329">
-  <link rel="stylesheet" href="css/style.css?v=202610251329">
+  <link rel="stylesheet" href="css/roadbook.css?v=202610251333">
+  <link rel="stylesheet" href="css/style.css?v=202610251333">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script type="module" src="js/app.js?v=202610251329"></script>
+  <script type="module" src="js/app.js?v=202610251333"></script>
 </head>
 <body>
   <header class="site-top">
@@ -125,6 +125,7 @@
           <input type="checkbox" id="opt-loop">
           <span>Anello: torna alla partenza</span>
         </label>
+        <p class="order-tip" id="order-tip" hidden><span id="order-tip-text"></span> <button type="button" class="link-btn" id="btn-reorder">Riordina</button></p>
         <p class="hint">Scrivi una località e premi <b>Invio</b>, oppure tocca la mappa. Coordinate e link di Google Maps vanno bene.</p>
         </div>
       </section>
@@ -202,6 +203,7 @@
             il giro lascia la strada più veloce) e dividiamo il giro in tratte. Apri una tratta alla volta.</p>
           <p class="status" id="maps-status"></p>
           <ol class="maps-legs" id="maps-legs"></ol>
+          <button type="button" class="link-btn" id="btn-apple-shorter" hidden></button>
           <p class="hint small">Il confronto con la strada più veloce è un'approssimazione: tra un punto e l'altro
             Google e Apple possono comunque scegliere strade diverse. Per seguire il giro esatto usa il GPX.</p>
         </div>
@@ -285,9 +287,6 @@
         <button type="button" class="btn go" id="btn-maps" disabled aria-label="Apri in Google Maps o Apple Mappe">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></svg>Mappe</button>
         <button type="button" class="btn" id="btn-tbt-dl" disabled title="Scarica il GPX turn by turn, per OsmAnd e Whip Live" aria-label="Scarica il GPX turn by turn, per OsmAnd e Whip Live">GPX</button>
-        <button type="button" class="btn secondary icon" id="btn-tbt-share" disabled aria-label="Invia GPX a un'altra app" title="Invia a…">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
-        </button>
       </div>
     </main>
   </div>

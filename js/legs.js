@@ -5,7 +5,7 @@
 // poi ricalcolano il percorso a modo loro. Per tenerli sul giro voluto si aggiungono dei
 // "punti di forzatura" (anchor) sulla strada scelta e si divide il giro in tratte, una per link.
 
-import { haversine, cumulativeDistances } from './core.js?v=202610251329';
+import { haversine, cumulativeDistances } from './core.js?v=202610251333';
 
 // Tutte le costanti in un posto solo (limiti verificati il 4/10/2026, vedi docs/verifiche.md)
 export const LINKS = Object.freeze({
@@ -290,10 +290,29 @@ export function fitPoints(points, maxPoints) {
   return points.filter((p) => p.kind === 'tappa' || keep.has(p));
 }
 
+/** Toglie i punti quasi coincidenti con il precedente (Apple e Google rifiutano tratte con punti sovrapposti). */
+export function dedupePoints(points, minMeters = 60) {
+  const out = [];
+  for (const p of points) {
+    const prev = out[out.length - 1];
+    if (prev && haversine([prev.lat, prev.lon], [p.lat, p.lon]) < minMeters) {
+      // resta la tappa, non il punto di forzatura; se sono due tappe si tiene la prima
+      if (prev.kind !== 'tappa' && p.kind === 'tappa') out[out.length - 1] = p;
+      continue;
+    }
+    out.push(p);
+  }
+  return out;
+}
+
 export function buildLinks(points, platform, opts = {}) {
-  if (platform === 'apple') points = fitPoints(points, LINKS.APPLE_MAX_POINTS);
+  points = dedupePoints(points);
+  const full = LINKS.APPLE_WAYPOINTS;
+  const maxApple = Math.max(1, Math.min(full, opts.maxWaypoints || full));
+  // link da 15 punti: si diradano i punti di forzatura invece di dividere il giro; con link più corti si divide
+  if (platform === 'apple' && maxApple === full) points = fitPoints(points, LINKS.APPLE_MAX_POINTS);
   const max =
-    platform === 'apple' ? LINKS.APPLE_WAYPOINTS : platform === 'google-desktop' ? LINKS.GOOGLE_DESKTOP_WAYPOINTS : LINKS.GOOGLE_MOBILE_WAYPOINTS;
+    platform === 'apple' ? maxApple : platform === 'google-desktop' ? LINKS.GOOGLE_DESKTOP_WAYPOINTS : LINKS.GOOGLE_MOBILE_WAYPOINTS;
   return splitLegs(points, max).map((leg) => {
     const url = platform === 'apple' ? appleLink(leg, opts) : googleLink(leg);
     const anchors = leg.slice(1, -1).filter((p) => p.kind === 'anchor');

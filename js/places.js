@@ -1,7 +1,7 @@
 // Funzioni pure per trovare e descrivere i luoghi (risultati Nominatim).
 // Nessun accesso a rete o DOM: testate in tests/places.test.mjs.
 
-import { haversine } from './core.js?v=202610251329';
+import { haversine } from './core.js?v=202610251333';
 
 // ---------------------------------------------------------------------------
 // Coordinate scritte a mano o incollate da una mappa
@@ -479,4 +479,66 @@ export function chooseRoadPoints(elements, near, next = null, { maxKm = 40 } = {
   if (haversine(a.n, b.n) < 3000) return { mid: a.n, before: null, after: null };
   const half = [(a.n[0] + b.n[0]) / 2, (a.n[1] + b.n[1]) / 2];
   return { mid: nearest(half).n, before: a.n, after: b.n };
+}
+
+// ---------------------------------------------------------------------------
+// Ordine delle tappe: si propone quello più corto
+// ---------------------------------------------------------------------------
+
+/**
+ * Ordine delle tappe che accorcia il giro (linea d'aria), con partenza e arrivo fermi
+ * (in un anello è ferma la sola partenza). Restituisce { order, saved, before } con `order` = indici delle tappe
+ * nel nuovo ordine, oppure null se il risparmio è piccolo (meno del 15% o di 25 km).
+ * È un suggerimento: un giro panoramico può avere buoni motivi per girare largo.
+ */
+export function shorterOrder(stops, loop = false) {
+  const n = stops.length;
+  if (n < 4) return null;
+  const d = (a, b) => haversine([stops[a].lat, stops[a].lon], [stops[b].lat, stops[b].lon]);
+  const length = (ord) => {
+    let t = 0;
+    for (let i = 1; i < ord.length; i++) t += d(ord[i - 1], ord[i]);
+    return loop ? t + d(ord[ord.length - 1], ord[0]) : t;
+  };
+  const start = Array.from({ length: n }, (_, i) => i);
+  const before = length(start);
+  // il tratto finale è fermo solo se non è un anello
+  const free = start.slice(1, loop ? n : n - 1);
+  const tail = loop ? [] : [n - 1];
+  // vicino più vicino, poi 2-opt
+  let best = [0];
+  const left = new Set(free);
+  while (left.size) {
+    const last = best[best.length - 1];
+    let pick = null;
+    let pd = Infinity;
+    for (const i of left) {
+      const x = d(last, i) + (loop ? 0 : d(i, n - 1) * 0.15);
+      if (x < pd) {
+        pd = x;
+        pick = i;
+      }
+    }
+    best.push(pick);
+    left.delete(pick);
+  }
+  best = [...best, ...tail];
+  let improved = true;
+  while (improved) {
+    improved = false;
+    const hi = loop ? best.length : best.length - 1;
+    for (let i = 1; i < hi - 1; i++) {
+      for (let j = i + 1; j < hi; j++) {
+        const cand = [...best.slice(0, i), ...best.slice(i, j + 1).reverse(), ...best.slice(j + 1)];
+        if (length(cand) < length(best) - 1) {
+          best = cand;
+          improved = true;
+        }
+      }
+    }
+  }
+  const after = length(best);
+  const saved = before - after;
+  if (saved < 25000 || saved < before * 0.15) return null;
+  return { order: best, saved, before };
 }

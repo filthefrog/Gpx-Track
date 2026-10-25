@@ -27,14 +27,14 @@ import {
   stopShapeIndices,
   profileAt,
   pointAtDistance,
-} from './core.js?v=202610251329';
-import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad } from './places.js?v=202610251329';
-import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251329';
-import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251329';
-import { CONFIG } from './config.js?v=202610251329';
-import { buildRoadbook, rbKm } from './roadbook.js?v=202610251329';
-import { mountRoadbookView } from './roadbook-view.js?v=202610251329';
-import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251329';
+} from './core.js?v=202610251333';
+import { snapsToRoad, splitPlaces, pickByNeighbours, farOffKm, parseRoad, shorterOrder } from './places.js?v=202610251333';
+import { expandStops, nearestSide, oppositeSide, passCrossing, findSpurs, compassLabel } from './passes.js?v=202610251333';
+import { fetchRoute, searchPlaces, reverseGeocode, fetchPassSides, fetchElevation, fetchFastShape } from './services.js?v=202610251333';
+import { CONFIG } from './config.js?v=202610251333';
+import { buildRoadbook, rbKm } from './roadbook.js?v=202610251333';
+import { mountRoadbookView } from './roadbook-view.js?v=202610251333';
+import { LINKS, divergences, placeAnchors, routePointsSequence, buildLinks, stopsOnlySequence } from './legs.js?v=202610251333';
 
 const L = window.L;
 const $ = (sel) => document.querySelector(sel);
@@ -1233,8 +1233,27 @@ $('#btn-reverse').addEventListener('click', () => {
   toast('Giro invertito: si parte dall\'ultima tappa.');
 });
 
+/** Se un altro ordine delle tappe accorcia molto il giro, lo si propone (senza cambiare nulla da soli). */
+function updateOrderTip() {
+  const list = placed();
+  const r = list.length >= 4 && list.length === state.stops.filter((s) => s.status !== 'empty').length ? shorterOrder(list, state.loop) : null;
+  $('#order-tip').hidden = !r;
+  if (r) $('#order-tip-text').textContent = `In un altro ordine il giro si accorcia di circa ${Math.round(r.saved / 1000)} km (in linea d'aria).`;
+}
+
+$('#btn-reorder').addEventListener('click', () => {
+  const list = placed();
+  const r = shorterOrder(list, state.loop);
+  if (!r) return;
+  state.stops = r.order.map((i) => list[i]);
+  toast('Tappe riordinate. «Annulla» ripristina l\'ordine di prima.');
+  changed();
+  fitAll();
+});
+
 function changed({ recalc = true } = {}) {
   renderStops();
+  updateOrderTip();
   renderMarkers();
   $('#prefs-summary').textContent = prefsSummary();
   persist();
@@ -1527,7 +1546,6 @@ function setDock(mode) {
   const ready = mode === 'ready';
   $('#btn-maps').disabled = !ready;
   $('#btn-tbt-dl').disabled = !ready;
-  $('#btn-tbt-share').disabled = !ready;
   if (ready) {
     countKm($('#dock-km'), route.parsed.summary.length);
     $('#dock-time').textContent = `${formatDuration(route.parsed.summary.time)} · ${turnByTurnInstructions(route.parsed).length} indicazioni`;
@@ -1924,8 +1942,14 @@ for (const input of document.querySelectorAll('input[name="maps-platform"]')) {
     renderMapsLinks();
   });
 }
+$('#btn-apple-shorter').addEventListener('click', () => {
+  appleMax = appleMax > 6 ? 6 : appleMax > 3 ? 3 : appleMax > 2 ? 2 : 13;
+  toast(appleMax === 13 ? 'Link da 15 punti.' : `Link da ${appleMax + 2} punti al massimo: più link, ma Apple li calcola più facilmente.`);
+  renderMapsLinks();
+});
 // «Solo tappe»: Google o Apple calcolano la strada da sole, utile per confrontare tempi e km con i nostri
 // per Apple di regola solo le tappe: i punti di forzatura possono cadere su strade che Apple (calcolo per auto) rifiuta
+let appleMax = 13; // punti intermedi per link Apple: si accorcia se Apple non riesce a calcolare
 let mapsDirect = mapsPlatform === 'apple';
 $('#maps-direct').checked = mapsDirect;
 $('#maps-direct').addEventListener('change', (e) => {
@@ -1994,6 +2018,7 @@ function renderMapsLinks() {
   const opts = {
     avoidHighways: state.options.style === 'scenic' || state.options.highways === 0,
     avoidTolls: !!state.options.avoidTolls,
+    maxWaypoints: appleMax,
   };
   let points = null;
   let note = '';
@@ -2041,7 +2066,10 @@ function renderMapsLinks() {
   }
   const legs = points ? buildLinks(points, mapsPlatform, opts) : [];
   mapsLegs = legs; // il pulsante «Mappe» apre subito la prima tratta, senza aspettare
-  const key = JSON.stringify([legs.map((l) => l.url), note]);
+  const shorter = $('#btn-apple-shorter');
+  shorter.hidden = mapsPlatform !== 'apple' || !legs.length;
+  shorter.textContent = appleMax > 2 ? 'Apple non calcola? Prova con link più corti' : 'Torna ai link più lunghi';
+  const key = JSON.stringify([legs.map((l) => l.url), note, appleMax]);
   if (key === mapsKey) return;
   mapsKey = key;
   mapsStatus(note, kind);
@@ -2139,8 +2167,8 @@ $('#rb-file').addEventListener('change', async (e) => {
 });
 
 const exportButtons = {
-  '#btn-tbt-dl': ['turn-by-turn', download],
-  '#btn-tbt-share': ['turn-by-turn', share],
+  // sul telefono il GPX si invia direttamente all'app (OsmAnd, Whip Live, File), sul computer si scarica
+  '#btn-tbt-dl': ['turn-by-turn', (f) => (coarse ? share(f) : download(f))],
   '#btn-track-dl': ['traccia', download],
   '#btn-track-share': ['traccia', share],
   '#btn-route-dl': ['rotta', download],
@@ -2390,6 +2418,13 @@ $('#toast').addEventListener('click', () => ($('#toast').hidden = true));
 // PWA: service worker, aggiornamenti e installazione
 // ---------------------------------------------------------------------------
 
+// versione dell'app in fondo alla pagina: serve per sapere se si sta usando l'ultima
+(() => {
+  const v = new URL(import.meta.url).searchParams.get('v');
+  const foot = document.querySelector('.foot');
+  if (v && foot) foot.append(` · versione ${v.slice(2, 8)}.${v.slice(8)}`);
+})();
+
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
   // si ricarica solo dopo «Aggiorna» (alla prima installazione il service worker prende il controllo senza ricaricare)
@@ -2402,14 +2437,16 @@ function registerServiceWorker() {
   navigator.serviceWorker
     .register('sw.js')
     .then((reg) => {
-      const offer = (worker) =>
-        toast('Nuova versione di Traccemoto disponibile.', false, {
-          label: 'Aggiorna',
-          run: () => {
-            updateRequested = true;
-            worker.postMessage('skipWaiting');
-          },
-        });
+      const offer = (worker) => {
+        const apply = () => {
+          updateRequested = true;
+          worker.postMessage('skipWaiting');
+        };
+        const typing = document.activeElement && /^(input|textarea)$/i.test(document.activeElement.tagName);
+        // il giro è salvato a ogni modifica: se non si sta scrivendo si aggiorna da soli, senza chiedere
+        if (!typing) return apply();
+        toast('Nuova versione di Traccemoto disponibile.', false, { label: 'Aggiorna', run: apply });
+      };
       // versione nuova già scaricata e in attesa
       if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
       reg.addEventListener('updatefound', () => {

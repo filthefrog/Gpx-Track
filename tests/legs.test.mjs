@@ -11,6 +11,7 @@ import {
   googleLink,
   appleLink,
   fitPoints,
+  dedupePoints,
   buildLinks,
   stopsOnlySequence,
 } from '../js/legs.js';
@@ -199,4 +200,21 @@ test('fitPoints: tutte le tappe restano e il giro sta in un solo link Apple da 1
   const many = Array.from({ length: 20 }, (_, i) => mk(i, 'tappa'));
   assert.equal(fitPoints(many, 15).length, 20);
   assert.equal(buildLinks(many, 'apple').length, 2);
+});
+
+test('dedupePoints e link più corti per Apple', () => {
+  const mk = (i, kind = 'anchor') => ({ lat: 45 + i * 0.01, lon: 10, at: i * 1000, kind, ...(kind === 'tappa' ? { name: `T${i}` } : {}) });
+  // un punto di forzatura quasi sopra la tappa: resta la tappa
+  const near = { ...mk(1), lat: 45.01 + 0.0002 };
+  const out = dedupePoints([mk(0, 'tappa'), near, mk(1, 'tappa'), mk(2)]);
+  assert.equal(out.length, 3);
+  assert.equal(out[1].kind, 'tappa');
+  // due tappe coincidenti: ne resta una
+  assert.equal(dedupePoints([mk(0, 'tappa'), mk(0, 'tappa'), mk(3, 'tappa')]).length, 2);
+  const points = Array.from({ length: 30 }, (_, i) => mk(i, i % 5 === 0 ? 'tappa' : 'anchor'));
+  const long = buildLinks(points, 'apple');
+  const short = buildLinks(points, 'apple', { maxWaypoints: 3 });
+  assert.equal(long.length, 1);
+  assert.ok(short.length > 5);
+  for (const l of short) assert.ok((l.url.match(/waypoint=/g) || []).length <= 3);
 });

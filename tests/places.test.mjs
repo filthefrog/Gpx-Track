@@ -15,6 +15,7 @@ import {
   roadQuery,
   chooseRoadPoints,
   farOffKm,
+  shorterOrder,
 } from '../js/places.js';
 import { routeLocations, buildValhallaRequest, isSnapError } from '../js/core.js';
 
@@ -266,4 +267,21 @@ test('scorePlace: con tappa prima e dopo vince l\'omonimo che non allunga il gir
   const good = scorePlace(mk(43.95, 11.3), { near: prev, next });
   const bad = scorePlace(mk(45.6, 9.5), { near: prev, next });
   assert.ok(good > bad + 0.3);
+});
+
+test('shorterOrder: propone un ordine più corto solo se il risparmio è grande', () => {
+  const p = (lat, lon) => ({ lat, lon });
+  // partenza, arrivo e due tappe messe in ordine "a zig zag"
+  const zig = [p(43, 11), p(43, 13), p(43.05, 11.5), p(43.1, 12.5), p(43.1, 14)];
+  const r = shorterOrder(zig);
+  assert.ok(r && r.saved > 25000);
+  assert.equal(r.order[0], 0);
+  assert.equal(r.order.at(-1), 4);
+  assert.deepEqual([...r.order].sort(), [0, 1, 2, 3, 4]);
+  // già in ordine: niente da proporre
+  assert.equal(shorterOrder([p(43, 11), p(43, 11.5), p(43, 12), p(43, 12.5), p(43, 13)]), null);
+  assert.equal(shorterOrder([p(43, 11), p(44, 12), p(45, 13)]), null);
+  // anello: la partenza resta ferma
+  const loop = shorterOrder([p(43, 11), p(43, 13), p(43.05, 11.5), p(43.1, 12.5), p(43.1, 12.9)], true);
+  assert.ok(!loop || loop.order[0] === 0);
 });
